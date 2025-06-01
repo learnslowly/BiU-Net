@@ -1,0 +1,32 @@
+runId: LONI_Mar05_2202
+dataset: HLA
+chromosome: 6
+population: ALL
+segLen: -1
+overlap: 0
+unique: False
+
+model: scda
+batchSize: 2048
+dropoutRate: 0.00
+learningRate: 0.00000283
+scheduler: cosineAnn
+loss: crossEntropy
+sampling: normal
+upsamplingRatio: 0.8
+finetuning: False
+targetBin: 0.001-0.005
+totalEpochs: 2000
+warmupEpochs: 100
+cooldownEpochs: 0
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.05
+dynamicRatio: False
+
+benchmarkAll: True
+batchSizeTest: 1024
+epoch: 19999

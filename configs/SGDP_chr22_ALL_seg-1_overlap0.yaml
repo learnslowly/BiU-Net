@@ -1,0 +1,8 @@
+runId: Segmentation
+dataset: SGDP
+chromosome: 22
+segLen: -1
+overlap: 0
+population: ALL
+unique: False
+model: Any

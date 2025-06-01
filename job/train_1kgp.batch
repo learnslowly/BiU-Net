@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#SBATCH --output=job/1kgp.log
+#SBATCH --open-mode=append
+#SBATCH --time=2-23:59:59
+#SBATCH --job-name=1kgp
+#SBATCH --account=your_hpc_account
+
+# ##----------CPU--------------
+# #SBATCH --partition=your_hpc_nodes_partition
+# #SBATCH --nodes=8
+# #SBATCH --ntasks=240
+# #SBATCH --ntasks-per-node=30
+# #SBATCH --cpus-per-task=2
+
+##---------GPU------------
+#SBATCH --partition=your_hpc_nodes_partition
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=30
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:2
+
+#module load cuda/12.2.1
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate $HOME/miniconda3/envs/u19
+
+# Export master address and port for distributed communication
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12345
+
+starttime=`date +'%Y-%m-%d %H:%M:%S'`
+
+echo "Node: $SLURM_NODELIST"
+echo "Local Rank: $SLURM_LOCALID"
+echo "Using GPUs: $CUDA_VISIBLE_DEVICES"
+
+srun python train.py --configFile archive/exp1/1KGP_chr22_ALL_seg128_overlap16/LONI_Feb25_2304.yaml
+
+endtime=`date +'%Y-%m-%d %H:%M:%S'`
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"

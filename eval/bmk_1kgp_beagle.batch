@@ -1,0 +1,57 @@
+#!/bin/bash
+
+#SBATCH --output=/tmp/bmk_%A_%a.log
+#SBATCH --time=0-23:30:00
+#SBATCH --job-name=bmk_1kg_b
+#SBATCH --partition=your_hpc_nodes_partition
+#SBATCH --account=your_hpc_account
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --array=0-11
+#SBATCH --exclusive
+
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate $HOME/miniconda3/envs/u19
+
+# Define random states
+RANDOM_STATES=(0 42 1024)
+IMP_METHOD="beagle"
+DATASET="1KGP"
+CHR=22
+POP="ALL"
+
+# Define custom log directories and files
+LOG_DIR="../${IMP_METHOD}/eval/${DATASET}_chr${CHR}_${POP}/"
+mkdir -p $LOG_DIR
+
+# Config file
+CONFIG_FILE="${LOG_DIR}/${DATASET}_chr${CHR}_${POP}.yaml"
+# Get number of missing levels
+NUM_MISSING_LEVELS=$(python -c "
+from config.modelconfig import ModelConfig
+config = ModelConfig.from_yaml('$CONFIG_FILE')
+print(len(config.missing))
+")
+
+# Calculate indices for this array task
+RAND_IDX=$((SLURM_ARRAY_TASK_ID / NUM_MISSING_LEVELS))
+MISS_IDX=$((SLURM_ARRAY_TASK_ID % NUM_MISSING_LEVELS))
+RANDOM_STATE=${RANDOM_STATES[$RAND_IDX]}
+
+# Create descriptive log file names
+LOG_FILE="${LOG_DIR}/benchmark_rand${RANDOM_STATE}_missidx${MISS_IDX}.log"
+
+starttime=`date +'%Y-%m-%d %H:%M:%S'`
+echo "Array task $SLURM_ARRAY_TASK_ID: random state index $RAND_IDX (value $RANDOM_STATE), missing level index $MISS_IDX"
+
+# Run the command with output redirected to custom log file
+python -u benchmark.py --configFile $CONFIG_FILE --randState $RANDOM_STATE --missingLevelIdx $MISS_IDX --impMethod $IMP_METHOD > $LOG_FILE 2>&1
+
+endtime=`date +'%Y-%m-%d %H:%M:%S'`
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"

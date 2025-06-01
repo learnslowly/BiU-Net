@@ -1,0 +1,35 @@
+runId: LONI_Mar05_1745
+dataset: SGDP
+chromosome: 22
+segLen: -1
+overlap: 0
+population: ALL
+unique: False
+
+# Auxiliary for training
+model: scda
+bioAware: False
+useWandB: True
+batchSize: 64
+dropoutRate: 0.00
+learningRate: 0.001
+loss: focalLoss
+sampling: normal
+upsamplingRatio: 0.8
+totalEpochs: 800
+warmupEpochs: 5
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.002
+seed: 42
+missingRatio: 0.25
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking
+
+benchmarkAll: True
+batchSizeTest: 1024
+epoch: 19999

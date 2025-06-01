@@ -1,0 +1,37 @@
+runId: LONI_Feb23_1142
+dataset: SGDP
+chromosome: 22
+segLen: 128
+overlap: 16
+population: ALL
+unique: False
+
+# Auxiliary for training
+model: unet
+bioAware: True
+useWandB: True
+batchSize: 64
+dropoutRate: 0.00
+learningRate: 0.001
+loss: focalLoss
+sampling: normal
+upsamplingRatio: 0.8
+totalEpochs: 800
+warmupEpochs: 8
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.002
+seed: 42
+missingRatio: 0.9
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking
+
+benchmarkAll: True
+#modelDir: archive/exp1/SGDP_chr22_ALL_seg128_overlap16/checkpoints
+analysisDir: archive/exp1/SGDP_chr22_ALL_seg128_overlap16/analysis
+batchSizeTest: 1024
+epoch: 756
