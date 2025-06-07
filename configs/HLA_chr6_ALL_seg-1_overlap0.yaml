@@ -1,8 +1,0 @@
-runId: Segmentation
-dataset: HLA
-chromosome: 6
-segLen: -1
-overlap: 0
-population: ALL
-unique: False
-model: Any

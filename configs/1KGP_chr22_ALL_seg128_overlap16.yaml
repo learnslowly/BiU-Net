@@ -1,8 +1,0 @@
-runId: Segmentation
-dataset: 1KGP
-chromosome: 22
-segLen: 128
-overlap: 16
-population: ALL
-unique: False
-model: Any

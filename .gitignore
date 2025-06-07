@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# But don't ignore model/ directory
+!model/
+!model/**
+
+# Don't ignore this .gitignore file
+!.gitignore
+
+# Don't ignore README if you want one
+!README.md

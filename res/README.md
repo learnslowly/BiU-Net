@@ -1,1 +1,0 @@
-Path for segmented SNPs.
