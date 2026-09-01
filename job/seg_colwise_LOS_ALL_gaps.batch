@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_colwise_LOS_ALL_gaps_%j.log
+#SBATCH --time=04:00:00
+#SBATCH --job-name=seg_cw_gaps
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+
+# Colwise gap rates 5/15/50%, step 1/2: segment the masked CSVs -> masked HDF5s.
+
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Job $SLURM_JOB_ID started at $(date)"
+srun python -u segmenting.py \
+    --configFile configs/test_v3low_seg128_LOS_chr22_ALL_gaps_colwise.yaml \
+    --createFilteredSNPs False
+echo "segmenting exited with $?"

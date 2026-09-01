@@ -1,0 +1,45 @@
+# Inference-only config for BiUNet on 1KGP chr22 ALL.
+
+runId: gpu4
+dataset: 1KGP
+chromosome: 22
+segLen: 128
+overlap: 16
+population: ALL
+
+# Model
+model: unet
+bioAware: True
+batchSize: 128
+dropoutRate: 0.0
+learningRate: 0.00042
+loss: hybridWeightedFocalLoss
+sampling: normal
+upsamplingRatio: 0.8
+
+# Training params (unused at inference but required by ModelConfig)
+useWandB: False
+finetuning: False
+totalEpochs: 400
+warmupEpochs: 10
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.5
+dynamicRatio: False
+bertStrategy: False
+
+# Testing
+benchmarkAll: False
+batchSizeTest: 16
+epoch: 160
+
+# Manuscript MAF bins: ≤0.5%, 0.5-1%, 1-5%, 5-40%, ≥40%
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+
+# Restrict test.py to the single configuration we're benchmarking
+missing: [0.5]
+testRandStates: [42]

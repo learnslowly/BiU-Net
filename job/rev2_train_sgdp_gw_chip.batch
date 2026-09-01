@@ -1,0 +1,56 @@
+#!/bin/bash
+#SBATCH --output=logs/rev2_train_sgdpgw_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name=rev2_sgdpgw
+#SBATCH --partition=gpu2
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=24
+#SBATCH --gpus-per-task=1
+
+# SGDP genome-wide from random initialisation under array-like column masking at a
+# 4,096-marker window, the aligned 1KGP panel of every chromosome merged in.
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12530
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+# Per-job compile caches: a cancelled job can leave truncated/duplicated JSON in a
+# shared /tmp cache, and the next job on that node dies with JSONDecodeError("Extra
+# data") inside inductor (this killed job 978812).
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache_$SLURM_JOB_ID
+export TORCHINDUCTOR_CACHE_DIR=/tmp/$USER/inductor_cache_$SLURM_JOB_ID
+mkdir -p $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR
+
+# u19's only interpreter is python3.10, call it directly (conda activate is unreliable
+# inside batch jobs here).
+CONFIG_FILE="configs/train_SGDP_gw_chip4096.yaml"
+
+if [ "${ALLOW_RESUME:-0}" != "1" ] && [ -z "$(ls checkpoints/checkpoint_sgdp_chipgw4096_* 2>/dev/null)" ]; then
+  echo "starting from random initialisation (no checkpoint under this runId)"
+elif [ "${ALLOW_RESUME:-0}" != "1" ]; then
+  echo "ERROR: checkpoints for sgdp_chipgw4096 already exist; this run would"
+  echo "       continue them rather than start fresh. Move them aside, or set"
+  echo "       ALLOW_RESUME=1 if continuing is what you want."
+  ls checkpoints/checkpoint_sgdp_chipgw4096_* | head
+  exit 2
+fi
+
+echo "Job $SLURM_JOB_ID started at $(date) on $SLURM_JOB_NODELIST"
+echo "Master: $MASTER_ADDR:$MASTER_PORT  WORLD_SIZE=$SLURM_NTASKS"
+
+srun --export=ALL --gpu-bind=closest "$PYBIN" -u train.py --configFile $CONFIG_FILE
+RC=$?
+
+echo "Job $SLURM_JOB_ID finished at $(date) (srun rc=$RC)"
+# Propagate the real exit code, otherwise a crashed run reads as COMPLETED and afterok
+# dependents fire against a missing checkpoint (happened with 978812).
+exit $RC

@@ -1,0 +1,38 @@
+# SGDP chr19 training config, identical recipe to the manuscript SGDP chr22 run
+# (archive/exp1/SGDP_chr22_ALL_seg128_overlap16/LONI_Feb23_1142.yaml), chromosome
+# switched 22 -> 19 (small, gene-dense chr -> fast to train) per reviewer concern.
+runId: sgdp_chr19_seg128_v1
+dataset: SGDP
+chromosome: 19
+segLen: 128
+overlap: 16
+population: ALL
+unique: False
+
+# Auxiliary for training
+model: unet
+bioAware: True              # normPos bio channel (positional, derived from snpsIndex; no chr-specific file)
+useWandB: True
+batchSize: 64               # per-rank; effective batch = 64 * world_size
+dropoutRate: 0.00
+learningRate: 0.001
+loss: hybridWeightedFocalLoss
+sampling: normal
+upsamplingRatio: 0.8
+totalEpochs: 800
+warmupEpochs: 8
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.002
+seed: 42
+missingRatio: 0.9           # SGDP trained at 90% missing (per manuscript)
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking (epoch picked AFTER training; placeholder for now)
+benchmarkAll: True
+analysisDir: archive/exp1/SGDP_chr19_ALL_seg128_overlap16/analysis
+batchSizeTest: 1024
+epoch: 800

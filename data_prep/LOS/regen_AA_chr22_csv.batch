@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --output=logs/regen_AA_chr22_csv_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=regen_AA_csv
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+
+# Regenerate the CORRECT LOS_chr22_AA split CSVs from the CLEAN Jan-17 VCFs.
+
+source configs/credentials.sh
+cd $GENOTYPE_DATA_DIR/LOS || { echo "ERROR: cannot cd to data/LOS"; exit 1; }
+echo "cwd=$(pwd); $(date)"
+ls -la split/LOS_chr22_AA_*.vcf.gz split/LOS_chr22_AA_*.csv.gz 2>&1
+
+# 1) Back up the corrupted Feb-7 CSVs (reversible) before overwriting.
+for S in test train val; do
+    f="split/LOS_chr22_AA_${S}.csv.gz"
+    if [ -f "$f" ] && [ ! -f "${f}.feb7corrupt" ]; then
+        cp -p "$f" "${f}.feb7corrupt"
+        echo "backed up $f -> ${f}.feb7corrupt"
+    fi
+done
+
+# 2) Regenerate test/train/val from the clean VCFs (vcf2csv.py uses ./split/ paths and
+# SLURM_CPUS_PER_TASK workers).
+rc=0
+for S in test train val; do
+    echo "=== vcf2csv 22 AA $S  $(date) ==="
+    python -u vcf2csv.py 22 AA "$S" || rc=$?
+done
+
+echo "=== regenerated CSVs ==="
+ls -la split/LOS_chr22_AA_*.csv.gz 2>&1
+echo "vcf2csv overall rc=$rc; done $(date)"
+exit $rc

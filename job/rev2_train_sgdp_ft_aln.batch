@@ -1,0 +1,54 @@
+#!/bin/bash
+#SBATCH --output=logs/rev2_train_sgdp_ft_aln_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=2-00:00:00
+#SBATCH --job-name=rev2_sgdp_ftaln
+#SBATCH --partition=gpu2
+#SBATCH --nodes=4
+#SBATCH --ntasks=8
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=24
+#SBATCH --gpus-per-task=1
+
+# Revision-2 SGDP finetune: warm-start from the genome-wide 1KGP model.
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12386
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache_$SLURM_JOB_ID
+export TORCHINDUCTOR_CACHE_DIR=/tmp/$USER/inductor_cache_$SLURM_JOB_ID
+mkdir -p $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR
+
+CONFIG_FILE="configs/train_SGDP_g22_ALL_seg1024_ft_aln.yaml"
+SRC_CKPT="checkpoints/checkpoint_v3low_ref_g22_1KGP_chr22_ALL_seg1024_overlap128_epoch_24.pth"
+DST_CKPT="checkpoints/checkpoint_ft_sgdp_aln_SGDP_chr22_ALL_seg1024_overlap128_epoch_0.pth"
+
+if ! ls checkpoints/checkpoint_ft_sgdp_aln_*_epoch_*.pth >/dev/null 2>&1; then
+  if [ ! -s "$SRC_CKPT" ]; then
+    echo "ERROR: 1KGP source checkpoint missing: $SRC_CKPT"; exit 1
+  fi
+  echo "Prebaking $DST_CKPT from $SRC_CKPT (weights only, epoch reset to 0)"
+  "$PYBIN" - "$SRC_CKPT" "$DST_CKPT" <<'EOF'
+import sys, torch
+src, dst = sys.argv[1], sys.argv[2]
+ck = torch.load(src, map_location='cpu', weights_only=False)
+ck['epoch'] = 0
+ck.pop('optimizer', None)
+ck.pop('scheduler', None)
+torch.save(ck, dst)
+print(f"prebaked: {dst}")
+EOF
+fi
+
+echo "Job $SLURM_JOB_ID started at $(date) on $SLURM_JOB_NODELIST"
+srun --export=ALL --gpu-bind=closest "$PYBIN" -u train.py --configFile $CONFIG_FILE
+RC=$?
+echo "Job $SLURM_JOB_ID finished at $(date) (srun rc=$RC)"
+exit $RC

@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --output=logs/mask_colwise_LOS_ALL_95_%j.log
+#SBATCH --time=00:30:00
+#SBATCH --job-name=mask_cw_los95
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+
+# Column-wise mask generation: LOS chr22 ALL @ 95% missing, rand_state label 1042.
+# Writes to BiUNet/data/LOS/masked/1042/95%/: - masked CSV (benchmark.py reads this to
+# identify masked positions) - target VCF (Beagle input: 95% of variants physically
+# removed)
+
+source configs/credentials.sh
+echo "Job $SLURM_JOB_ID started at $(date)"
+which bcftools tabix || { echo "ERROR: bcftools/tabix not on PATH"; exit 1; }
+start=$(date +%s)
+
+srun python -u $GENOTYPE_DATA_DIR/masking_colwise.py \
+    --dataset LOS \
+    --chromosome 22 \
+    --population ALL \
+    --missing-ratios 0.95 \
+    --rand-state 1042
+
+rc=$?
+end=$(date +%s)
+echo "masking_colwise.py exited with $rc"
+echo "Elapsed: $(( (end-start)/60 ))m $(( (end-start)%60 ))s"
+echo "=== outputs under BiUNet/data/LOS/masked/1042/95%/ ==="
+ls -la data/LOS/masked/1042/95%/ 2>&1
+exit $rc

@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_chr%a_%j.log
+#SBATCH --time=2-00:00:00
+#SBATCH --job-name=seg_1024
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+#SBATCH --array=1-22
+
+# Segment 1KGP train/val/test (and any pre-existing masked CSVs) for chromosome given by
+# SLURM_ARRAY_TASK_ID at segLen=1024 overlap=128.
+
+source configs/credentials.sh
+CHR=$SLURM_ARRAY_TASK_ID
+CONF=configs/1KGP_chr${CHR}_ALL_seg1024_overlap128.yaml
+
+if [ ! -f "$CONF" ]; then
+    echo "ERROR: missing config $CONF"
+    exit 1
+fi
+
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+start=$(date +%s)
+echo "Job $SLURM_JOB_ID array=$SLURM_ARRAY_TASK_ID chr=$CHR started at $(date)"
+srun python -u segmenting.py --configFile $CONF --createFilteredSNPs False
+end=$(date +%s)
+echo "chr=$CHR done in $(( (end - start) / 60 ))m $(( (end - start) % 60 ))s"

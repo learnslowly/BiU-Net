@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --output=logs/rebench_sporadic_BAF_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=rebench_spBAF
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+
+# THE DECIDER: re-benchmark the SPORADIC results with benchmarkAll=False (phased BAF,
+# masked positions only) for BiUNet (base v3_low_seg128 ep210) vs Beagle at 5/15/25%,
+# rand_state 42.
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+mkdir -p configs/baf
+echo "Job $SLURM_JOB_ID started $(date)"
+
+mkbaf(){ out="configs/baf/$(basename "$1" .yaml)_spBAF.yaml"; sed 's/^benchmarkAll:.*/benchmarkAll: False/' "$1" > "$out"; echo "$out"; }
+run(){ echo "=== $* ==="; python -u benchmark.py --configFile "$1" --randState 42 --missingLevelIdx 0 ${2:+--impMethod $2} 2>&1 | tail -n 12; }
+
+for R in 5 15 25; do
+  CFG=$(mkbaf configs/test_v3low_seg128_LOS_chr22_ALL_${R}.yaml)
+  echo "########## ${R}% sporadic, phased BAF ##########"
+  run "$CFG"            # BiUNet (base v3_low_seg128)
+  run "$CFG" beagle     # Beagle
+done
+
+echo "done $(date)"
+echo "Outputs: analysis/v3_low_seg128_phased_{biunet,beagle}_BAF_PV_rand42_LOS_chr22_ALL_seg128_overlap16_missing{5,15,25}%.csv"

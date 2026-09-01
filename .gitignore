@@ -1,0 +1,53 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor/IDE backups
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+.DS_Store
+
+# Large artifact directories
+checkpoints/
+archive/
+res/
+wandb/
+analysis/
+# In-house cohort data: individual-level genotypes and the participant
+# demographic table are not redistributable. The leading-slash form of this
+# rule only ever matched a top-level temp/, so name the paths outright.
+temp/
+Results/temp/
+Results/LOS_demographic.csv
+*_test.csv.gz
+*_imputed.csv.gz
+profiling_logs/
+impute/
+
+# SLURM job and eval outputs (keep .batch scripts only)
+job/*
+!job/*.batch
+eval/*
+!eval/*.batch
+logs/
+
+# Secrets -- credentials.sh holds the WandB key (commit credentials.sh.example instead)
+configs/credentials.sh
+
+# Large binary artifacts
+*.hdf5
+*.pth
+*.onnx
+
+# macOS AppleDouble junk
+._*
+
+# data/ is the Python package, but on a working checkout it also holds the
+# cohort trees beside the modules. Ignore the cohorts, keep the package.
+data/*/
+!data/__pycache__/

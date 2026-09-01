@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_fa_rescore
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=12:00:00
+#SBATCH --array=0-5
+
+# Rescores imputations that already exist on disk, so no model runs here and no GPU is
+# needed.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=8
+export MPLBACKEND=Agg
+
+CFGS=(
+  configs/test_ft_sgdp_chr19_ft_chr19_fa.yaml
+  configs/test_ft_sgdp_full_chr19_fa.yaml
+  configs/test_ft_sgdp_noref_chr19_fa.yaml
+  configs/test_ft_sgdp_aln_chr19_fa.yaml
+  configs/test_ft_sgdp_g22_chr19_fa.yaml
+  configs/test_ft_sgdp_full_chr22_fa.yaml
+)
+CFG="${CFGS[$SLURM_ARRAY_TASK_ID]}"
+echo "task $SLURM_ARRAY_TASK_ID -> $CFG   start $(date)"
+
+FAIL=0
+for RS in 0 42 1024; do
+  for IDX in 0 1 2; do
+    "$PYBIN" -u benchmark.py --configFile "$CFG" --randState "$RS" --missingLevelIdx "$IDX" \
+      || { echo "FAILED rand=$RS idx=$IDX"; FAIL=1; }
+  done
+done
+echo "task $SLURM_ARRAY_TASK_ID finished $(date) (fail=$FAIL)"
+exit $FAIL

@@ -1,0 +1,50 @@
+#!/bin/bash
+#SBATCH --output=logs/rebench_colwise_BAF_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=rebench_BAF
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+
+# Re-benchmark the colwise results with benchmarkAll=False (BAF) so only the imputed
+# (removed) variants are scored, the correct colwise metric.
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+mkdir -p configs/baf
+echo "Job $SLURM_JOB_ID started $(date)"
+
+# Make a benchmarkAll:False copy of a config -> echoes the new path
+mkbaf(){ out="configs/baf/$(basename "$1" .yaml)_BAF.yaml"; sed 's/^benchmarkAll:.*/benchmarkAll: False/' "$1" > "$out"; echo "$out"; }
+
+BASE_GAPS=$(mkbaf configs/test_v3low_seg128_LOS_chr22_ALL_gaps_colwise.yaml)   # missing [0.05,0.15,0.5] idx 0,1,2
+BASE_25=$(mkbaf   configs/test_v3low_seg128_LOS_chr22_ALL_25_colwise.yaml)     # missing [0.25]            idx 0
+BASE_95=$(mkbaf   configs/test_v3low_seg128_LOS_chr22_ALL_95_colwise.yaml)     # missing [0.95]            idx 0
+FT50=$(mkbaf      configs/test_v3low_seg128_ft50_colwise_ep10.yaml)            # missing [0.05,0.15,0.25,0.5] idx 0..3
+FT95=$(mkbaf      configs/test_v3low_seg128_ft95_colwise_ep80.yaml)            # missing [0.5,0.95]       idx 0,1
+
+run(){ echo "=== benchmark $* ==="; python -u benchmark.py --configFile "$1" --randState 1042 --missingLevelIdx "$2" ${3:+--impMethod $3} 2>&1 | tail -n 12; }
+
+echo "########## BiUNet (base v3_low) BAF ##########"
+run "$BASE_GAPS" 0       # 5%
+run "$BASE_GAPS" 1       # 15%
+run "$BASE_GAPS" 2       # 50%
+run "$BASE_25"   0       # 25%
+run "$BASE_95"   0       # 95%
+
+echo "########## Beagle BAF (same configs, --impMethod beagle) ##########"
+run "$BASE_GAPS" 0 beagle
+run "$BASE_GAPS" 1 beagle
+run "$BASE_GAPS" 2 beagle
+run "$BASE_25"   0 beagle
+run "$BASE_95"   0 beagle
+
+echo "########## ft50 (colwise 0-50%) BAF ##########"
+run "$FT50" 0; run "$FT50" 1; run "$FT50" 2; run "$FT50" 3    # 5,15,25,50
+
+echo "########## ft95 (colwise ->95%) BAF ##########"
+run "$FT95" 0; run "$FT95" 1                                  # 50,95
+
+echo "done $(date)"
+echo "Outputs: analysis/v3_low_seg128*_phased_{biunet,beagle}_BAF_PV_rand1042_*_missing*.csv"

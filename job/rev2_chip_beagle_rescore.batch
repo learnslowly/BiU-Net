@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_chip_bgl_rescore
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=06:00:00
+#SBATCH --array=0-21
+
+# Rebuild the Beagle CSV from the VCF already on disk and score it.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+DS=${1:?usage: sbatch job/rev2_chip_beagle_rescore.batch DATASET}
+C=$((SLURM_ARRAY_TASK_ID + 1))
+export MPLBACKEND=Agg
+
+VCF=$REMOTE_ROOT/beagle/impute/2000/90%/${DS}_chr${C}_ALL_missing90%_imputed.vcf.gz
+[ -s "$VCF" ] || { echo "no Beagle VCF for $DS chr$C"; exit 1; }
+
+"$PYBIN" -u scripts/beagle_vcf_to_csv.py --dataset "$DS" --chromosome "$C" \
+    --rand-state 2000 --missing "90%" || exit 1
+
+"$PYBIN" -u benchmark.py --configFile "configs/test_${DS}_chrft_chip_${C}.yaml" \
+    --impMethod beagle
+RC=$?
+echo "done $DS chr$C rc=$RC"
+exit $RC

@@ -1,0 +1,27 @@
+{
+  "title": "BiU-Net: A Biologically Informed U-Net for Genotype Imputation",
+  "description": "Reference implementation of BiU-Net, a bio-aware 1D U-Net for SNP genotype imputation: the model, data pipeline, per-dataset configs, SLURM job scripts, benchmark/report tooling, and manuscript reproducibility artifacts (figures, results tables).",
+  "upload_type": "software",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Huang, Lei",
+      "affiliation": "University of Southern Mississippi"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.21203/rs.3.rs-6797863/v1",
+      "relation": "isSupplementTo",
+      "scheme": "doi"
+    }
+  ],
+  "keywords": [
+    "genotype imputation",
+    "U-Net",
+    "deep learning",
+    "SNP",
+    "genomics",
+    "bioinformatics"
+  ]
+}

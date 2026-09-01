@@ -1,0 +1,14 @@
+# seg-1 (full-length) HDF5 generation for the manuscript-protocol SCDA baseline.
+runId: seg_fl_chr3
+dataset: 1KGP
+chromosome: 3
+chromosomes: [3]
+segLen: -1
+overlap: 0
+population: ALL
+model: scda
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 512
+batchSizeTest: 512
+seed: 1024

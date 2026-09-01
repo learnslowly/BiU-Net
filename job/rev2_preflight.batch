@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_preflight
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --time=00:15:00
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+"$PYBIN" -u scripts/preflight_train_config.py configs/train_SGDP_g22_ALL_seg1024_ft_full.yaml
+exit $?

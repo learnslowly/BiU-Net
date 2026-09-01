@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --output=logs/mask_colwise_LOS_ALL_gaps_%j.log
+#SBATCH --time=00:30:00
+#SBATCH --job-name=mask_cw_gaps
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+
+# Column-wise mask gen for the gap rates 5/15/50% (25% and 95% already done). Writes
+# masked CSV + target VCF under BiUNet/data/LOS/masked/1042/{5%,15%,50%}/.
+
+source configs/credentials.sh
+echo "Job $SLURM_JOB_ID started at $(date)"
+which bcftools tabix || { echo "ERROR: bcftools/tabix not on PATH"; exit 1; }
+start=$(date +%s)
+
+srun python -u $GENOTYPE_DATA_DIR/masking_colwise.py \
+    --dataset LOS --chromosome 22 --population ALL \
+    --missing-ratios 0.05 0.15 0.50 \
+    --rand-state 1042
+
+rc=$?; end=$(date +%s)
+echo "masking_colwise.py exited with $rc"
+echo "Elapsed: $(( (end-start)/60 ))m $(( (end-start)%60 ))s"
+for p in 5 15 50; do echo "--- ${p}% ---"; ls -la data/LOS/masked/1042/${p}%/ 2>&1; done
+exit $rc

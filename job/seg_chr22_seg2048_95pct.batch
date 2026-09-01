@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_chr22_seg2048_95pct_%j.log
+#SBATCH --time=04:00:00
+#SBATCH --job-name=seg2048_95
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+srun python -u segmenting.py --configFile configs/seg_chr22_seg2048_high_missing.yaml --createFilteredSNPs False

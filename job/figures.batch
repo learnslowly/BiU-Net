@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=figures
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
+#SBATCH --time=00:30:00
+
+# Project root + central credentials (PYBIN etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export MPLBACKEND=Agg            # headless matplotlib (plt.show() becomes a no-op)
+export HDF5_USE_FILE_LOCKING=FALSE
+mkdir -p Figures
+
+# Manuscript figures built from the committed Results/ tables.
+( cd Results && for fig in Figure_3.py Figure_S1.py Figure_S2.py Figure_S4_9.py Figure_S10.py; do
+    echo "===== Results/$fig ====="
+    "$PYBIN" -u "$fig" || echo "WARN: $fig failed"
+  done )
+
+# Figure S3 is a pair of confusion matrices benchmark.py writes beside the cells it
+# scores; copy the two the paper shows out of analysis/ under their figure names.
+CA=analysis/exp1_phased_beagle_BAT_rand0_LOS_chr22_CA_seg128_overlap16_missing5%_confusion_matrix.pdf
+BU=analysis/exp1_epoch66_phased_biunet_BAT_rand0_LOS_chr22_CA_seg128_overlap16_missing5%_confusion_matrix.pdf
+for pair in "$CA:Figure_S3_left_Beagle" "$BU:Figure_S3_right_BiUNet"; do
+  src="${pair%%:*}"; dst="Figures/${pair##*:}_LOS_chr22_CA_missing5%_confusion_matrix.pdf"
+  if [ -f "$src" ]; then cp "$src" "$dst"; echo "$dst"
+  else echo "WARN: $src not found; score the LOS CA cells first"; fi
+done
+
+echo "All figures regenerated -> Figures/"

@@ -1,0 +1,58 @@
+# 1KGP chromosome 22 from random initialisation, trained on exactly the input an array-
+# to-WGS imputation receives: the positions the array carries are observed and every
+# other position is missing, the same pattern in every sample and every batch, read from
+# the site list the test set was built with.
+runId: chip_fixed4096_c22
+dataset: 1KGP
+chromosome: 22
+chromosomes: [22]
+segLen: 4096
+overlap: 512
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+useGroupNorm: False
+batchSize: 64
+learningRate: 0.0005
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+missingRatio: 0.95
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+trainOnVal: True
+mixedPrecisionTraining: True
+preloadData: True
+useTorchCompile: True
+torchCompileMode: reduce-overhead
+saveCheckpointFreq: 5
+valFreq: 5
+valSubsetFraction: 0.05
+useWandB: False
+finetuning: False
+totalEpochs: 300
+warmupEpochs: 5
+cooldownEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+earlyStoppingPatience: 999    # fixed schedule; val is in-training under trainOnVal
+earlyStoppingMinDelta: 0.0
+curriculumStartRatio: -1.0
+curriculumWarmupEpochs: 0
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+batchSizeTest: 8
+epoch: 0
+maskMode: chip
+chipSitesFile: "data/1KGP/masked/2000/90%/array_sites_chr22_ALL.tsv"

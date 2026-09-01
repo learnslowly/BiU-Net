@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --output=logs/phased_fill_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=ph_fill
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+
+# Fill gaps in phased r² sweep: 5%, 15%, 70% missing × F3+Beagle × BAF+BAT.
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Job $SLURM_JOB_ID started at $(date)"
+
+# idx 0=5%, 1=15%, 2=70% (per missing: [0.05, 0.15, 0.7])
+for IDX in 0 1 2; do
+    echo "=== rate idx=$IDX ==="
+    echo ">>> F3 BAF"
+    python -u benchmark.py --configFile configs/test_phased_full_v2.yaml --randState 42 --missingLevelIdx $IDX 2>&1 | grep -E "(Overall|Bin_R2)"
+    echo ">>> F3 BAT"
+    python -u benchmark.py --configFile configs/test_phased_full_v2_BAT.yaml --randState 42 --missingLevelIdx $IDX 2>&1 | grep -E "(Overall|Bin_R2)"
+    echo ">>> Beagle BAF"
+    python -u benchmark.py --configFile configs/test_phased_full_v2.yaml --randState 42 --missingLevelIdx $IDX --impMethod beagle 2>&1 | grep -E "(Overall|Bin_R2)"
+    echo ">>> Beagle BAT"
+    python -u benchmark.py --configFile configs/test_phased_full_v2_BAT.yaml --randState 42 --missingLevelIdx $IDX --impMethod beagle 2>&1 | grep -E "(Overall|Bin_R2)"
+done
+
+echo "DONE at $(date)"

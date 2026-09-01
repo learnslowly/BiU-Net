@@ -1,0 +1,44 @@
+# Experiment-2 SGDP eval, chr9: the genome-wide ft_sgdp_g22 model (val-selected best
+# checkpoint) imputes this chromosome's masked test sets.
+runId: ft_sgdp_g22
+dataset: SGDP
+chromosome: 9
+chromosomes: [9]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+useGroupNorm: False
+batchSize: 256
+batchSizeTest: 8
+learningRate: 0.0001
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+useWandB: False
+finetuning: False
+totalEpochs: 100
+warmupEpochs: 3
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.30
+dynamicRatio: True
+bertStrategy: False
+benchmarkAll: True
+perVariantR2: False
+epoch: best
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]

@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp6_mask
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=06:00:00
+#SBATCH --array=0-0
+
+# Revision-2 SGDP track: sporadic masking of the test split, per chromosome (5/15/25% x
+# rand states 0/42/1024, fixed inside 03_masking.py).
+set -euo pipefail
+source configs/credentials.sh
+CHRS=(6)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+
+cd $GENOTYPE_DATA_DIR/SGDP
+export OMP_NUM_THREADS=1
+
+echo "masking: SGDP chr$C at 5/15/25%"
+"$PYBIN" -u 03_masking.py --dataset SGDP --chromosome "$C" --missingRatios 0.05 0.15 0.25
+echo "DONE chr$C"

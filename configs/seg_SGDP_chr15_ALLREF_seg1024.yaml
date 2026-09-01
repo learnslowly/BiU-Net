@@ -1,0 +1,15 @@
+# Aligned-ref segmentation: 1KGP test projected onto the SGDP chr15 axis (ALLREF
+# population tag), train chunk only, no val/test/masked outputs.
+runId: seg_alnref_chr15
+dataset: SGDP
+chromosome: 15
+chromosomes: [15]
+segLen: 1024
+overlap: 128
+population: ALLREF
+model: unet
+missing: []
+testRandStates: []
+batchSize: 256
+batchSizeTest: 8
+seed: 42

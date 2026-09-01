@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_maps
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
+
+# Revision-2: extract the per-chromosome GRCh38 plink genetic maps Beagle needs (only
+# chr6/19/22 were unzipped).
+set -euo pipefail
+source configs/credentials.sh
+M=$GENOTYPE_DATA_DIR/1KGP/orig/GRCh38/genetic_maps
+cd $M
+unzip -n plink.GRCh38.map.zip
+for c in $(seq 1 22); do
+  [ -e plink.chr${c}.GRCh38.map ] || ln -sf no_chr_in_chrom_field/plink.chr${c}.GRCh38.map plink.chr${c}.GRCh38.map
+done
+ls plink.chr*.GRCh38.map | wc -l
+echo "DONE"

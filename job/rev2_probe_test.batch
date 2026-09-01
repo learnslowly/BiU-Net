@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_probe_test
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+#SBATCH --time=02:00:00
+#SBATCH --array=0-1%2
+
+# Mid-run probe of the 160-epoch extension: impute + score one chromosome from the
+# epoch-$EP checkpoint (default 70), to decide whether the remaining 90 epochs are worth
+# the wall time.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+CHRS=(22 1)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+# EP selects which mid-run checkpoint to probe: sbatch --export=ALL,EP=100
+EP=${EP:-70}
+CFG=configs/test_v3low_ref_g22_chr${C}_e${EP}.yaml
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+# unique per array task: two tasks can share a node on gpu4 (4 GPUs, 2 requested each),
+# and a shared rendezvous port kills the loser
+export MASTER_PORT=$((12351 + SLURM_ARRAY_TASK_ID))
+export NCCL_SOCKET_IFNAME=^lo
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+echo "== chr$C inference from epoch-$EP checkpoint: $(date)"
+# no --gpu-bind: on a partially allocated node it remaps devices out from under the
+# cgroup and NCCL fails in nvmlDeviceGetHandleByPciBusId
+srun --export=ALL "$PYBIN" -u test.py --configFile "$CFG"
+RC=$?
+echo "== chr$C inference done $(date) (rc=$RC)"
+exit $RC

@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_bench_g22_e70
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=0
+#SBATCH --time=12:00:00
+#SBATCH --array=0-21
+
+# Revision-2 benchmarking: for one chromosome, score BiUNet (test.py output) and Beagle
+# (converted imputed CSVs) over 3 rand states x 3 missing levels.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export HDF5_USE_FILE_LOCKING=FALSE
+
+CHRS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+CFG=configs/test_v3low_ref_g22_chr${C}_e70.yaml
+
+FAIL=0
+for RS in 0 42 1024; do
+  for IDX in 0 1 2; do
+    echo "===== chr$C BiUNet: randState=${RS} missingLevelIdx=${IDX} ====="
+    "$PYBIN" -u benchmark.py --configFile "$CFG" --randState "$RS" --missingLevelIdx "$IDX" || FAIL=1
+  done
+done
+echo "DONE chr$C (9 benchmark cells, fail=$FAIL)"
+exit $FAIL

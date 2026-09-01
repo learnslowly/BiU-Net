@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --output=logs/benchmark_beagle_BAT_PV_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=bgl_BATPV
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Beagle phased+BAT+PV benchmark started at $(date)"
+
+for RATE in 5 15 25 50 95; do
+  echo "=== rate ${RATE} ==="
+  python -u benchmark.py --configFile configs/test_v3_low_${RATE}.yaml --randState 42 --missingLevelIdx 0 --impMethod beagle 2>&1 | tail -n 12
+done
+
+echo "Beagle phased+BAT+PV benchmark done at $(date)"

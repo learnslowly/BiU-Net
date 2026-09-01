@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=figures_genomewide
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=12:00:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=8
+unset SLURM_TRES_PER_TASK
+
+# The three genome-wide figures, rendered from the same cells the tables read.
+mkdir -p Results/figures
+"$PYBIN" -u scripts/plot_accuracy_by_frequency.py       # accuracy across the frequency spectrum
+"$PYBIN" -u scripts/plot_accuracy_by_chromosome.py    # per-chromosome against the baselines
+"$PYBIN" -u scripts/plot_beagle_excluded_markers.py   # markers with no reference match
+echo "figures -> Results/figures/"

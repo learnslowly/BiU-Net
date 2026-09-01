@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --output=logs/train_dosage_v1_%j.log
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name=dosage_v1
+#SBATCH --partition=gpu2
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=24
+#SBATCH --gpus-per-task=1
+
+# v2 training: BiUNet U-Net at segLen=1024, multi-chromosome (chr 1-22), hybridFocalLoss
+# (focal CE + dosage MSE), mask-only gradient, fixed 50% mask.
+
+source configs/credentials.sh
+# HDF5 file lock collision when 8 ranks open the same train HDF5 read-only; disable the
+# file lock so concurrent reads work.
+export HDF5_USE_FILE_LOCKING=FALSE
+
+# DDP / NCCL config, mirrors the working GenoBERT pattern.
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12340
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo      # don't try loopback for cross-node init
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+CONFIG_FILE="configs/train_1KGP_chr1_22_ALL_seg1024_dosage_v1.yaml"
+
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+echo "Job $SLURM_JOB_ID started at $starttime on $SLURM_JOB_NODELIST"
+echo "Master: $MASTER_ADDR:$MASTER_PORT  WORLD_SIZE=$SLURM_NTASKS"
+
+srun --export=ALL --gpu-bind=closest python -u train.py --configFile $CONFIG_FILE
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+echo "Job $SLURM_JOB_ID finished at $endtime"

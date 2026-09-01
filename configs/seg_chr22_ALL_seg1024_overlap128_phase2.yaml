@@ -1,0 +1,12 @@
+# Phase 2 segmentation config: chr22 ALL seg1024 overlap128 at high missing rates.
+
+runId: Segmentation
+dataset: 1KGP
+chromosome: 22
+segLen: 1024
+overlap: 128
+population: ALL
+unique: False
+model: Any
+
+missing: [0.7, 0.8, 0.9, 0.95]

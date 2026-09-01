@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --output=archive/exp1/LOS_chr22_CA_seg128_overlap16/slurm_%A_%a.log
+#SBATCH --time=0-23:30:00
+#SBATCH --job-name=unet_ca
+
+#SBATCH --partition=workq
+#SBATCH --nodes=1                         # Each array task gets 1 node only
+#SBATCH --array=0-3                       # 4 array jobs
+
+# SBATCH --partition=gpu2 SBATCH --nodes=1 # Each array task gets 1 node only SBATCH
+# --gpus-per-task=1 # Assign 1 GPU per task SBATCH --array=0-3 # 4 array jobs SBATCH
+# --gres=gpu:1 # Request exactly 1 GPU per task
+
+# Setup environment
+source configs/credentials.sh
+# Set thread limits
+export OMP_NUM_THREADS=8
+export MKL_NUM_THREADS=8
+
+# "archive/exp1/LOS_chr22_ALL_seg-1_overlap0/LONI_Mar01_0004.yaml"
+CONFIG_FILE="archive/exp1/LOS_chr22_CA_seg128_overlap16/FT_UNET_CA.yaml"
+
+# Record start time
+start_time=$(date +%s)
+echo "SLURM Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Started at: $(date)"
+
+# Run the python script with SLURM array task ID as missing index
+python -u test.py --configFile $CONFIG_FILE --missingIndex $SLURM_ARRAY_TASK_ID
+
+# Record end time
+end_time=$(date +%s)
+elapsed_time=$((end_time - start_time))
+elapsed_minutes=$((elapsed_time / 60))
+elapsed_seconds=$((elapsed_time % 60))
+echo "SLURM Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Finished at: $(date)"
+echo "Total runtime: ${elapsed_minutes} min ${elapsed_seconds} sec"

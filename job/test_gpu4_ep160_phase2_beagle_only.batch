@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --output=logs/test_gpu4_ep160_phase2_beagle_only_%j.log
+#SBATCH --time=00:30:00
+#SBATCH --job-name=ev_bg_p2
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+
+# Re-run Beagle-only eval at 70/80/90/95% missing (BiUNet half already done in 765643).
+
+source configs/credentials.sh
+CONFIG_FILE="configs/test_gpu4_ep160_phase2.yaml"
+
+# IDX 0=50%, 1=70%, 2=80%, 3=90%, 4=95%.
+for IDX in 1 2 3 4; do
+    echo "=== Beagle benchmark idx=$IDX ==="
+    python -u benchmark.py --configFile $CONFIG_FILE --randState 42 --missingLevelIdx $IDX --useDosage --impMethod beagle
+done

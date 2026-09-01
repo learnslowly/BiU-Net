@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --output=logs/test_ft95_ep80_colwise_%j.log
+#SBATCH --time=03:00:00
+#SBATCH --job-name=test_ft95_ep80
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:1
+
+# Eval the colwise 95% specialist (ft95, epoch 80) at the high-missing regime 50% + 95%
+# colwise, vs base BiUNet + Beagle.
+
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12362
+export NCCL_DEBUG=WARN
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+CONFIG_FILE="configs/test_v3low_seg128_ft95_colwise_ep80.yaml"
+echo "Job $SLURM_JOB_ID started $(date)"
+
+srun --export=ALL --gpu-bind=closest python -u test.py --configFile $CONFIG_FILE
+echo "test.py exited with $?"
+
+for IDX in 0 1; do
+    echo "=== benchmark idx=$IDX ==="
+    python -u benchmark.py --configFile $CONFIG_FILE --randState 1042 --missingLevelIdx $IDX
+done
+echo "done $(date)"

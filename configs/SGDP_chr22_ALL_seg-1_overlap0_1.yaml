@@ -1,0 +1,36 @@
+# Required for data preparation/training/testing/benchmarking
+runId: LONI_Mar05_1745
+dataset: SGDP
+chromosome: 22
+segLen: -1
+overlap: 0
+population: ALL
+unique: False
+
+# Auxiliary for training
+model: scda
+bioAware: False
+useWandB: True
+batchSize: 2048
+dropoutRate: 0.01
+learningRate: 0.0000281
+loss: crossEntropy
+sampling: normal
+upsamplingRatio: 0.8
+totalEpochs: 20000
+warmupEpochs: 100
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.001
+seed: 42
+missingRatio: 0.05
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking
+
+benchmarkAll: True
+batchSizeTest: 1024
+epoch: 0

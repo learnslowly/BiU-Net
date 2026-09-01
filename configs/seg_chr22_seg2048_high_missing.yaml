@@ -1,0 +1,13 @@
+runId: seg2048_high
+dataset: 1KGP
+chromosome: 22
+chromosomes: [22]
+segLen: 2048
+overlap: 256
+population: ALL
+model: unet
+missing: [0.95]
+testRandStates: [42]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

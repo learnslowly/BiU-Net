@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_dupchk
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
+set -euo pipefail
+cd $GENOTYPE_DATA_DIR/SGDP
+source configs/credentials.sh
+"$PYBIN" - <<'PY'
+import pandas as pd
+for c in [4, 5, 6]:
+    df = pd.read_csv(f"split/SGDP_chr{c}_ALL_train.csv.gz", compression="gzip", index_col=0, usecols=[0])
+    dup = df.index.duplicated().sum()
+    print(f"chr{c}: {len(df.index)} positions, {dup} duplicated")
+PY
+echo DONE

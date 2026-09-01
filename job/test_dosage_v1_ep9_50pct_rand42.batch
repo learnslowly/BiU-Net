@@ -1,0 +1,40 @@
+#!/bin/bash
+#SBATCH --output=logs/test_dosage_v1_ep9_50pct_rand42_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=test_dv1_ep9
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:2
+
+# Early sanity-check inference for runId=dosage_v1 epoch=9 on 1KGP chr22 ALL.
+
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12341
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+CONFIG_FILE="configs/test_1KGP_chr22_ALL_seg1024_overlap128_50pct_rand42_dosage_v1_ep9.yaml"
+
+start=$(date +%s)
+echo "Job $SLURM_JOB_ID started at $(date) on $SLURM_JOB_NODELIST (WORLD_SIZE=$WORLD_SIZE)"
+srun --export=ALL --gpu-bind=closest python -u test.py --configFile $CONFIG_FILE
+echo "test.py exited with $?"
+
+# Run dosage benchmark for BiUNet (no impMethod = ref-free model path) Also run vs
+# Beagle on the same scope so the comparison is apples-to-apples.
+python -u benchmark.py --configFile $CONFIG_FILE --randState 42 --missingLevelIdx 0 --useDosage
+python -u benchmark.py --configFile $CONFIG_FILE --randState 42 --missingLevelIdx 0 --useDosage --impMethod beagle
+
+end=$(date +%s)
+elapsed=$((end - start))
+echo "Job $SLURM_JOB_ID finished at $(date), elapsed: $((elapsed / 60))m $((elapsed % 60))s"

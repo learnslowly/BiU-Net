@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --output=logs/beagle_colwise_LOS_ALL_rate_%j.log
+#SBATCH --job-name=bgl_cw_rate
+#SBATCH --partition=bigmem
+#SBATCH --time=12:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=64
+
+# Parameterized colwise Beagle for one gap rate.
+
+RATE="$1"; IDX="$2"
+if [ -z "$RATE" ] || [ -z "$IDX" ]; then echo "usage: sbatch beagle_colwise_LOS_ALL_rate.batch <rate> <idx>"; exit 1; fi
+MISSING_PERC="${RATE}%"
+
+source configs/credentials.sh
+export PATH=$HOME/local/java/bin:$PATH
+export JAVA_HOME=$HOME/local/java
+export BEAGLE_JAR=src/beagle.jar
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+CHR=22; DATASET=LOS; POP=ALL; RAND_ST=1042
+REF_FILE="../data/1KGP/ref/1KGP_chr${CHR}_ALL_ref.vcf.gz"
+MAP_FILE="../data/1KGP/orig/GRCh38/genetic_maps/plink.chr${CHR}.GRCh38.map"
+INPUT_FILE="data/${DATASET}/masked/${RAND_ST}/${MISSING_PERC}/${DATASET}_chr${CHR}_${POP}_missing${MISSING_PERC}_target.vcf.gz"
+OUTPUT_DIR="impute/${RAND_ST}/${MISSING_PERC}"
+OUTPUT_FILE="${OUTPUT_DIR}/${DATASET}_chr${CHR}_${POP}_missing${MISSING_PERC}_imputed.vcf.gz"
+
+cd $REMOTE_ROOT/beagle
+echo "Job $SLURM_JOB_ID started at $(date) | rate=${MISSING_PERC} idx=${IDX}"
+[ -f "$INPUT_FILE" ] || { echo "ERROR: target VCF not found: $INPUT_FILE"; exit 1; }
+mkdir -p "$OUTPUT_DIR"
+start=$(date +%s)
+
+java -Xmx200g -jar $BEAGLE_JAR \
+    gt=$INPUT_FILE ref=$REF_FILE map=$MAP_FILE \
+    out=${OUTPUT_FILE%.vcf.gz} impute=true ne=200000 nthreads=64
+echo "beagle exited with $?"
+tabix -f -p vcf $OUTPUT_FILE
+
+$CONDA_ENV/bin/python <<EOF
+import os, gzip, re
+import pandas as pd
+CONVERSION = {'0|0': 1, '0|1': 2, '1|0': 3, '1|1': 4}
+in_vcf  = "${OUTPUT_FILE}"
+out_csv = "${OUTPUT_FILE%.vcf.gz}.csv.gz"
+with gzip.open(in_vcf, 'rt') as f:
+    lines = [l for l in f if not l.startswith('##')]
+header = lines[0].split()
+g = pd.DataFrame([l.split() for l in lines[1:]], columns=header)
+g = pd.concat([g.iloc[:, [1]], g.iloc[:, 9:]], axis=1)
+for col in g.columns[1:]:
+    g[col] = pd.to_numeric(g[col].map(lambda c: c.split(':')[0]).map(CONVERSION),
+                           errors='coerce', downcast='integer')
+g = g.set_index('POS')
+pat = re.compile(r'\d+$')
+g.columns = [pat.search(c).group() if pat.search(c) else c for c in g.columns]
+os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+with gzip.open(out_csv, 'wt') as f:
+    g.to_csv(f, index=True)
+print(f"wrote {out_csv} shape={g.shape}")
+EOF
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+python -u benchmark.py \
+    --configFile configs/test_v3low_seg128_LOS_chr22_ALL_gaps_colwise.yaml \
+    --randState 1042 --missingLevelIdx $IDX --impMethod beagle
+echo "benchmark(beagle) exited with $?"
+end=$(date +%s)
+echo "Elapsed: $(( (end-start)/60 ))m $(( (end-start)%60 ))s"

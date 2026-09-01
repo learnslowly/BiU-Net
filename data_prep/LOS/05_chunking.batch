@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --export=NONE
+#SBATCH --partition=workq
+#SBATCH --time=8:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --job-name=chunk
+#SBATCH --output=./chunked/chunking_%j.out
+
+# =============================================================================
+# Chunking: Split train/val CSVs into column chunks for ML training
+# =============================================================================
+
+# HLA filter: "none" for non-HLA, "only" for HLA, "all" for both
+HLA_FILTER="${HLA_FILTER:-none}"
+
+# Activate the environment
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+export HLA_FILTER
+
+mkdir -p ./chunked
+
+echo "HLA_FILTER: ${HLA_FILTER}"
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+python chunking.py
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo "Chunking complete"
+echo "Running time: ${hours}h ${minutes}m"

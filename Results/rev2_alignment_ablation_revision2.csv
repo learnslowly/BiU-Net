@@ -1,0 +1,73 @@
+arm,reference_handling,missing,MAF_bin,R2,Num_SNPs
+no reference,SGDP training split only,5%,0.1%~0.5%,0.780601898839131,942684.0
+no reference,SGDP training split only,5%,0.5%~1%,0.8370464714006713,1024923.0
+no reference,SGDP training split only,5%,1%~10%,0.9347603821223389,9303015.0
+no reference,SGDP training split only,5%,10%~20%,0.9540408917862285,4894806.0
+no reference,SGDP training split only,5%,20%~30%,0.9483193823814492,3494664.0
+no reference,SGDP training split only,5%,30%~40%,0.9460946238511451,3043683.0
+no reference,SGDP training split only,5%,40%~50%,0.9448444421015713,2803050.0
+no reference,SGDP training split only,5%,Overall,0.952646234483414,51013650.0
+no reference,SGDP training split only,15%,0.1%~0.5%,0.4896564684768767,942684.0
+no reference,SGDP training split only,15%,0.5%~1%,0.5780676440487902,1024923.0
+no reference,SGDP training split only,15%,1%~10%,0.7738556791286126,9303015.0
+no reference,SGDP training split only,15%,10%~20%,0.8386668432708649,4894806.0
+no reference,SGDP training split only,15%,20%~30%,0.8334368199580143,3494664.0
+no reference,SGDP training split only,15%,30%~40%,0.8218945443269914,3043683.0
+no reference,SGDP training split only,15%,40%~50%,0.8128099196699525,2803050.0
+no reference,SGDP training split only,15%,Overall,0.8354683878634506,51013650.0
+no reference,SGDP training split only,25%,0.1%~0.5%,0.36077011669917525,942684.0
+no reference,SGDP training split only,25%,0.5%~1%,0.4424811569818069,1024923.0
+no reference,SGDP training split only,25%,1%~10%,0.6598112158106534,9303015.0
+no reference,SGDP training split only,25%,10%~20%,0.7513228301138385,4894806.0
+no reference,SGDP training split only,25%,20%~30%,0.7447142533714514,3494664.0
+no reference,SGDP training split only,25%,30%~40%,0.7283906455680466,3043683.0
+no reference,SGDP training split only,25%,40%~50%,0.7171617419898397,2803050.0
+no reference,SGDP training split only,25%,Overall,0.7449583494995393,51013650.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,0.1%~0.5%,0.7283206521988903,994134.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,0.5%~1%,0.7925376411289802,1071094.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,1%~10%,0.91282308824178,9628623.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,10%~20%,0.9432199455891979,5043245.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,20%~30%,0.9408485058991081,3612821.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,30%~40%,0.9396000748689196,3160784.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,40%~50%,0.9394107554465876,2915960.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,5%,Overall,0.9429380103596573,52853319.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,0.1%~0.5%,0.4098389653235041,994134.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,0.5%~1%,0.49263099294745755,1071094.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,1%~10%,0.7139091154439775,9628623.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,10%~20%,0.8052843493228475,5043245.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,20%~30%,0.8106439214203005,3612821.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,30%~40%,0.8047044653681877,3160784.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,40%~50%,0.7977425453873026,2915960.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,15%,Overall,0.8063396564904532,52853319.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,0.1%~0.5%,0.28507253184725856,994134.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,0.5%~1%,0.35281457451342935,1071094.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,1%~10%,0.5813391685869471,9628623.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,10%~20%,0.7042040265775205,5043245.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,20%~30%,0.7121137599986677,3612821.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,30%~40%,0.7039862704810418,3160784.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,40%~50%,0.6965916055559052,2915960.0
+unaligned reference,1KGP samples merged on the 1KGP variant axis,25%,Overall,0.7039414268605584,52853319.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,0.1%~0.5%,0.8410446685536576,942684.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,0.5%~1%,0.8892008145628235,1024923.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,1%~10%,0.9589470279833958,9303015.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,10%~20%,0.9686640499014387,4894806.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,20%~30%,0.9620469302557407,3494664.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,30%~40%,0.959634978891977,3043683.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,40%~50%,0.9558805420676304,2803050.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,5%,Overall,0.966870980050976,51013650.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,0.1%~0.5%,0.5991378248619214,942684.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,0.5%~1%,0.6924492086273215,1024923.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,1%~10%,0.845085058017857,9303015.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,10%~20%,0.8875191955256657,4894806.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,20%~30%,0.8765159217533095,3494664.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,30%~40%,0.8593233481536006,3043683.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,40%~50%,0.8466199699539573,2803050.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,15%,Overall,0.8812348034898138,51013650.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,0.1%~0.5%,0.4788188306084612,942684.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,0.5%~1%,0.577901642375219,1024923.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,1%~10%,0.7621773308797989,9303015.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,10%~20%,0.8246305893056276,4894806.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,20%~30%,0.8094646253013834,3494664.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,30%~40%,0.7839676967357276,3043683.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,40%~50%,0.7651046386516615,2803050.0
+aligned reference,1KGP samples projected onto the SGDP variant axis,25%,Overall,0.814720119169909,51013650.0

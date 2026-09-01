@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_seg_sgdp_gw
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+#SBATCH --time=12:00:00
+#SBATCH --array=1-22
+
+# SGDP at 4,096 markers per window for the genome-wide run: the aligned 1KGP panel and
+# the cohort's own training and validation splits, one chromosome per array task.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+C=$SLURM_ARRAY_TASK_ID
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+start=$(date +%s)
+"$PYBIN" -u segmenting.py --configFile configs/seg_SGDP_chr${C}_ALLPANEL_seg4096.yaml \
+    --createFilteredSNPs False
+RC1=$?
+"$PYBIN" -u segmenting.py --configFile configs/seg_SGDP_chr${C}_ALL_seg4096.yaml \
+    --createFilteredSNPs False
+RC2=$?
+echo "chr$C rc: panel=$RC1 cohort=$RC2, $(( ($(date +%s)-start)/60 ))m"
+[ $RC1 -eq 0 ] && [ $RC2 -eq 0 ]

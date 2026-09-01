@@ -1,0 +1,44 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --time=4:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=csv2vcf_p2
+#SBATCH --output=./masked/csv2vcf_p2_%A_%a.out
+#SBATCH --array=0-3   # 4 missing rates × 1 random state (rand=42)
+
+# Phase 2: convert chr22 ALL masked CSVs to VCFs at missing rates 70/80/90/95 (rand=42
+# only, since that's what we benchmark against).
+
+source configs/credentials.sh
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+DATASET="1KGP"
+CHR=22
+POP="ALL"
+RAND_ST=42
+
+MISSING_LEVELS=("70%" "80%" "90%" "95%")
+MISSING_LEVEL="${MISSING_LEVELS[$SLURM_ARRAY_TASK_ID]}"
+
+echo "Processing rand=${RAND_ST}, missing=${MISSING_LEVEL}"
+
+MASKED_CSV="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POP}_missing${MISSING_LEVEL}_masked.csv.gz"
+ORIGINAL_VCF="split/${DATASET}_chr${CHR}_${POP}_test.vcf.gz"
+OUTPUT_VCF="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POP}_missing${MISSING_LEVEL}_masked.vcf"
+
+if [ ! -f "$ORIGINAL_VCF" ]; then
+    echo "ERROR: Original VCF not found: $ORIGINAL_VCF"; exit 1
+fi
+if [ ! -f "$MASKED_CSV" ]; then
+    echo "ERROR: Masked CSV not found: $MASKED_CSV"; exit 1
+fi
+
+mkdir -p "masked/${RAND_ST}/${MISSING_LEVEL}"
+
+python maskedCSV2VCF.py --original $ORIGINAL_VCF --masked $MASKED_CSV --output $OUTPUT_VCF
+bgzip -c $OUTPUT_VCF > ${OUTPUT_VCF}.gz
+tabix -p vcf ${OUTPUT_VCF}.gz
+rm -f $OUTPUT_VCF
+echo "Completed: ${OUTPUT_VCF}.gz"

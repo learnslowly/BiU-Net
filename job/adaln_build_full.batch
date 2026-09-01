@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH --job-name=adaln_build_full
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=04:00:00
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+"$PYBIN" -u scripts/align_ref_to_sgdp.py full

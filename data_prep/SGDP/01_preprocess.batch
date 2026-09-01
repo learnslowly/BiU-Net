@@ -1,0 +1,350 @@
+#!/bin/bash
+
+#SBATCH --partition=workq
+#SBATCH --time=20:00:00
+#SBATCH --nodes=1
+#SBATCH --job-name=sgdp_pre
+#SBATCH --output=qc/logs/chr%a.out
+#SBATCH --array=6
+
+set -euo pipefail
+
+# Get chromosome number from array task ID
+export CHR=$SLURM_ARRAY_TASK_ID
+
+# module load vcftools bcftools export PATH=$HOME/local/bin:$PATH export
+# LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+export PATH=$HOME/jdk-23.0.2/bin:$PATH
+export JAVA_HOME=$HOME/jdk-23.0.2
+
+# Define input files and directories Define and export variables at the same time
+export INPUT_BCF="orig/chr.sgdp.pub.${CHR}.bcf"
+export METADATA_FILE="orig/SGDP_metadata.279public.21signedLetter.samples.txt"
+export QC_DIR="qc"
+export SPLIT_DIR="split"
+export SUBSET_DIR="subsets"
+export LOG_DIR="${QC_DIR}/logs"
+export DATASET="HLA"
+export CHAIN_FILE="orig/GRCh37_to_GRCh38.chain"
+export REF_GENOME_B38="orig/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+export DICT_FILE="${REF_GENOME_B38%.fa}.dict"
+
+# Create necessary directories
+mkdir -p ${QC_DIR}/temp ${SPLIT_DIR} ${SUBSET_DIR} ${LOG_DIR}
+
+# Define HLA region parameters for chr6 GRCh37 (hg19): chr6:28,477,797-33,448,354 GRCh38
+# (hg38): chr6:28,510,120-33,480,577
+HLA_START=28510120
+HLA_END=33480577
+
+# Record start time
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# **STEP 1: INITIAL QC (Including Liftover) ###
+echo "Processing chromosome ${CHR}"
+
+# Step 1.1: Convert BCF to VCF for liftover
+echo "Converting BCF to VCF..."
+bcftools view ${INPUT_BCF} -Oz -o ${QC_DIR}/temp/initial_chr${CHR}.vcf.gz
+tabix -p vcf ${QC_DIR}/temp/initial_chr${CHR}.vcf.gz
+
+# **STEP 1.2: Perform Liftover from GRCh37 to GRCh38**
+echo "Starting Liftover for chromosome ${CHR}..."
+
+# Create sequence dictionary if it doesn't exist
+TEMP_FILE="${DICT_FILE}.tmp"
+# Automatically select the first SLURM task for dictionary creation
+FIRST_TASK=$(scontrol show job $SLURM_JOB_ID | awk -F= '/BatchHost/ {print $2}' | head -n 1)
+MY_TASK=$(hostname)
+
+if [ "$MY_TASK" == "$FIRST_TASK" ]; then
+    # This process is responsible for creating the dictionary
+    if [ ! -f "${DICT_FILE}" ]; then
+        echo "First SLURM task ($MY_TASK) is creating the sequence dictionary..."
+        java -jar ~/picard.jar CreateSequenceDictionary \
+            -R "${REF_GENOME_B38}" \
+            -O "${DICT_FILE}"
+        echo "Dictionary creation completed."
+    else
+        echo "Dictionary file already exists. Skipping creation."
+    fi
+else
+    # Other processes wait for the dictionary to be created
+    echo "Waiting for dictionary creation..."
+    while [ ! -f "${DICT_FILE}" ]; do
+        sleep 5  # Adjust sleep time if needed
+    done
+    echo "Dictionary is ready. Proceeding."
+fi 
+
+
+# Perform liftover with more permissive parameters
+java -Xmx250G -jar ~/picard.jar LiftoverVcf \
+    -I "${QC_DIR}/temp/initial_chr${CHR}.vcf.gz" \
+    -O "${QC_DIR}/temp/lifted_chr${CHR}.vcf.gz" \
+    -CHAIN "${CHAIN_FILE}" \
+    -REJECT "${QC_DIR}/temp/rejected_variants.chr${CHR}.vcf.gz" \
+    -R "${REF_GENOME_B38}" \
+    -WARN_ON_MISSING_CONTIG true \
+    -LIFTOVER_MIN_MATCH 0.95 \
+    -RECOVER_SWAPPED_REF_ALT true
+
+# Check if liftover was successful
+if [ -f ${QC_DIR}/temp/lifted_chr${CHR}.vcf.gz ]; then
+    echo "Liftover completed for chromosome ${CHR}!"
+else
+    echo "Error: Liftover failed for chromosome ${CHR}"
+    exit 1
+fi
+ 
+# Step 1.3: Extract HLA region *after* liftover for chromosome 6
+if [ "$DATASET" = "HLA" ]; then
+    echo "Extracting HLA region in GRCh38..."
+    bcftools view -r 6:${HLA_START}-${HLA_END} ${QC_DIR}/temp/lifted_chr${CHR}.vcf.gz -Oz -o ${QC_DIR}/temp/lifted_${DATASET}_chr${CHR}.vcf.gz
+    tabix -p vcf ${QC_DIR}/temp/lifted_${DATASET}_chr${CHR}.vcf.gz
+fi
+ 
+# Step 1.4: Keep only biallelic SNPs (you can also use vcftools to do this)
+echo "Filtering for biallelic SNPs..."
+if [ "$DATASET" = "HLA" ]; then
+    bcftools view -m2 -M2 -v snps ${QC_DIR}/temp/lifted_${DATASET}_chr${CHR}.vcf.gz -Oz -o ${QC_DIR}/temp/biallelic_${DATASET}_chr${CHR}.vcf.gz
+else
+    bcftools view -m2 -M2 -v snps ${QC_DIR}/temp/lifted_chr${CHR}.vcf.gz -Oz -o ${QC_DIR}/temp/biallelic_${DATASET}_chr${CHR}.vcf.gz
+fi
+
+tabix -p vcf ${QC_DIR}/temp/biallelic_${DATASET}_chr${CHR}.vcf.gz
+
+# Step 1.5: Remove SNPs with missing genotypes
+echo "Removing SNPs with missing genotypes..."
+bcftools view -e 'F_MISSING > 0' ${QC_DIR}/temp/biallelic_${DATASET}_chr${CHR}.vcf.gz -Oz -o ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz
+tabix -p vcf ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz
+
+# Step 1.6: Remove individuals with >5% missing genotypes
+echo "Removing individuals with high missingness..."
+# Get list of sample names (one per line)
+bcftools query -l ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz > ${QC_DIR}/temp/sample_names.txt
+# Compute missingness per sample
+bcftools query -f '[%GT\t]\n' ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz | \
+  awk '{for (i=1;i<=NF;i++) if ($i == "./.") sum[i]+=1 } \
+       END {for (i in sum) print i, sum[i] / NR }' | \
+  sort -k1,1n | cut -f 2 > ${QC_DIR}/temp/sample_missingness.txt
+# Merge sample names with missingness values and extract those exceeding 5%
+paste ${QC_DIR}/temp/sample_names.txt ${QC_DIR}/temp/sample_missingness.txt | \
+  awk '$2 > 0.05 { print $1 }' > ${QC_DIR}/temp/samples_to_remove.txt
+# Filter VCF by removing samples with high missingness
+if [ -s "${QC_DIR}/temp/samples_to_remove.txt" ]; then
+    bcftools view -S ^${QC_DIR}/temp/samples_to_remove.txt ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz | bgzip > ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz
+else
+    mv ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz
+fi
+
+# Index the new filtered VCF
+tabix -p vcf ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz
+echo "Filtering complete. Output saved to ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz"
+
+# Step 1.7: Process regions information
+echo "Processing regions information..."
+python3 - <<EOF
+import csv
+from collections import defaultdict
+import subprocess
+import os
+
+# Get environment variables
+QC_DIR = os.environ['QC_DIR']
+CHR = os.environ['CHR']
+METADATA_FILE = os.environ['METADATA_FILE']
+SUBSET_DIR = os.environ['SUBSET_DIR']
+DATASET = os.environ['DATASET']
+
+# Read sample IDs from VCF and remove .DG suffix
+vcf_samples_raw = subprocess.check_output(
+    f"bcftools query -l {QC_DIR}/temp/qc_chr{CHR}.vcf.gz",
+    shell=True).decode().strip().split('\n')
+
+# Create mapping between with and without .DG
+vcf_samples_map = {sample.replace('.DG', ''): sample for sample in vcf_samples_raw}
+vcf_samples = set(vcf_samples_map.keys())
+
+# Define valid regions
+valid_regions = {"Africa", "America", "CentralAsiaSiberia", "EastAsia", 
+                "Oceania", "SouthAsia", "WestEurasia"}
+
+# Process metadata file
+regions = defaultdict(list)
+sample_info = {}
+
+with open(METADATA_FILE, encoding='latin1') as f:
+    reader = csv.DictReader(f, delimiter='\t')
+    for row in reader:
+        sample_id = row['SGDP_ID']  # Changed to SGDP_ID
+        if sample_id in vcf_samples:  # This will match without .DG
+            region = row['Region']
+            if region in valid_regions:
+                gender = row['Gender']
+                # Use the original VCF sample ID (with .DG) for output
+                vcf_sample_id = vcf_samples_map[sample_id]
+                sample_info[vcf_sample_id] = (region, gender)
+                regions[region].append(vcf_sample_id)
+
+# Write region specific sample id files
+for region in valid_regions:
+    with open(f"{SUBSET_DIR}/{DATASET}_chr{CHR}_{region}_ids.txt", 'w') as f:
+        for sample in regions[region]:
+            f.write(f"{sample}\n")
+
+# Write ALL samples ids
+with open(f"{SUBSET_DIR}/{DATASET}_chr{CHR}_ALL_ids.txt", 'w') as f:
+    for sample in sample_info:
+        f.write(f"{sample}\n")
+
+# Write detailed sample info
+with open(f"{QC_DIR}/temp/region_info_{CHR}.txt", 'w') as f:
+    for sample, (region, gender) in sample_info.items():
+        f.write(f"{sample}\t{region}\t{gender}\n")
+
+# Print summary statistics
+for region in valid_regions:
+    print(f"{region}: {len(regions[region])} samples")
+print(f"Total: {len(sample_info)} samples")
+
+with open(f"{QC_DIR}/temp/Done_chr{CHR}.signal", 'w') as f:
+    f.write("Done generating regions sample IDs.")
+EOF
+
+# Wait for the signal file to appear
+while [ ! -f "${QC_DIR}/temp/Done_chr${CHR}.signal" ]; do
+    sleep 1
+done
+
+# ### **STEP 2: REGION-SPECIFIC PROCESSING ###
+for REGION in ALL Africa America CentralAsiaSiberia EastAsia Oceania SouthAsia WestEurasia; do
+    export REGION
+    echo "Processing region ${REGION} for chromosome ${CHR}..."
+    # Step 2.1: Extract region-specific VCF
+    if [ "$REGION" = "ALL" ]; then
+        cp ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz ${QC_DIR}/${DATASET}_chr${CHR}_${REGION}.vcf.gz
+        cp ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz.tbi ${QC_DIR}/${DATASET}_chr${CHR}_${REGION}.vcf.gz.tbi
+    else
+        bcftools view -S ${SUBSET_DIR}/${DATASET}_chr${CHR}_${REGION}_ids.txt ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz -Oz -o ${QC_DIR}/${DATASET}_chr${CHR}_${REGION}.vcf.gz
+        tabix -p vcf ${QC_DIR}/${DATASET}_chr${CHR}_${REGION}.vcf.gz
+    fi
+
+    # Step 2.2: Create stratified train/val/test splits
+    python3 - <<EOF
+import csv
+import random
+import os
+from collections import defaultdict
+
+# Get environment variables
+REGION = os.environ['REGION']
+CHR = os.environ['CHR']
+QC_DIR = os.environ['QC_DIR']
+SUBSET_DIR = os.environ['SUBSET_DIR']
+DATASET = os.environ['DATASET']
+
+region_bins = defaultdict(list)
+
+with open(f"{QC_DIR}/temp/region_info_{CHR}.txt") as f:
+    for line in f:
+        sample, region, gender = line.strip().split("\t")
+        bin_key = f"{region}_{gender}"
+        region_bins[bin_key].append(sample)
+
+def split_list(lst, train_ratio=0.8, val_ratio=0.1):
+    random.seed(42)
+    shuffled = lst.copy()
+    random.shuffle(shuffled)
+    n = len(shuffled)
+    train_size = int(n * train_ratio)
+    val_size = int(n * val_ratio)
+    train = shuffled[:train_size]
+    val = shuffled[train_size:train_size + val_size]
+    test = shuffled[train_size + val_size:]
+    return train, val, test
+
+split_samples = {
+    "train": [],
+    "val": [],
+    "test": []
+}
+
+if REGION == "ALL":
+    for bin_key, samples in region_bins.items():
+        train, val, test = split_list(samples)
+        split_samples["train"].extend(train)
+        split_samples["val"].extend(val)
+        split_samples["test"].extend(test)
+else:
+    relevant_bins = {k: v for k, v in region_bins.items() if k.startswith(REGION)}
+    for bin_key, samples in relevant_bins.items():
+        train, val, test = split_list(samples)
+        split_samples["train"].extend(train)
+        split_samples["val"].extend(val)
+        split_samples["test"].extend(test)
+
+for split_name, samples in split_samples.items():
+    output_file = f"{SUBSET_DIR}/{DATASET}_chr{CHR}_{REGION}_{split_name}_ids.txt"
+    with open(output_file, "w") as f:
+        f.write("\n".join(sorted(samples)))
+EOF
+
+   # Step 2.3: Create initial split VCFs
+   for split in train val test; do
+       bcftools view -S ${SUBSET_DIR}/${DATASET}_chr${CHR}_${REGION}_${split}_ids.txt ${QC_DIR}/${DATASET}_chr${CHR}_${REGION}.vcf.gz \
+           -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}_initial.vcf.gz
+       tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}_initial.vcf.gz
+   done
+
+    # Step 2.4: Apply HWE and MAF filters
+    for split in train val test; do
+	echo "Processing ${split} split..."
+
+	# Apply HWE and MAF filtering in one step with vcftools
+	echo "Running VCFtools for HWE and MAF filtering..."
+	# Apply HWE and MAF filtering in one step with vcftools
+	echo "Running VCFtools for HWE and MAF filtering..."
+	bcftools +fill-tags ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}_initial.vcf.gz -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}_hwe.vcf.gz -- -t HWE
+	bcftools filter --include 'MAF>=0.001 & MAF<=0.999 & HWE>1e-6' \
+		 ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}_hwe.vcf.gz \
+		 -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}.vcf.gz
+	tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}.vcf.gz
+	echo "Indexing completed for ${split}"
+	# Print summary statistics
+	echo "Summary of SNPs for chromosome ${CHR}, region ${REGION}, ${split} split:"
+	echo "  Initial SNPs: $(bcftools query -f '%ID\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}_initial.vcf.gz | wc -l)"
+	echo "  SNPs after HWE+MAF: $(bcftools query -f '%ID\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}.vcf.gz | wc -l)"
+    done
+
+    # Step 2.5: Find overlapping SNPs across filtered splits
+    echo "Finding overlapping SNPs across filtered splits..."
+    comm -12 <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_train.vcf.gz | sort) \
+	     <(comm -12 <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_val.vcf.gz | sort) \
+		       <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_test.vcf.gz | sort)) \
+	     > ${QC_DIR}/temp/chr${CHR}_${REGION}_common_positions.txt
+
+    # Step 2.6: Create final split VCFs with overlapping SNPs and simplify format
+    echo "Creating final split VCFs with overlapping SNPs..."
+    for split in train val test; do
+	bcftools view -R ${QC_DIR}/temp/chr${CHR}_${REGION}_common_positions.txt \
+	    ${QC_DIR}/temp/${DATASET}_chr${CHR}_${REGION}_${split}.vcf.gz | \
+	    bcftools annotate -x FORMAT,^FORMAT/GT -Oz -o ${SPLIT_DIR}/${DATASET}_chr${CHR}_${REGION}_${split}.vcf.gz
+	tabix -p vcf ${SPLIT_DIR}/${DATASET}_chr${CHR}_${REGION}_${split}.vcf.gz
+    done
+    overlap_count=$(wc -l < ${QC_DIR}/temp/chr${CHR}_${REGION}_common_positions.txt | awk '{print $1}')
+    echo "SNPs in final overlap: ${overlap_count}"
+
+done
+
+# Record end time and calculate duration
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo "Pipeline completed successfully for chromosome ${CHR}!"
+echo "Running time: ${hours}h ${minutes}m"
+

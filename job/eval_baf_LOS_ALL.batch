@@ -1,0 +1,75 @@
+#!/bin/bash
+#SBATCH --output=logs/eval_baf_LOS_ALL_%j.log
+#SBATCH --time=03:00:00
+#SBATCH --job-name=eval_baf_LOS
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:1
+
+# Eval a BAF-trained model on SPORADIC phased BAF at 5/15/25% (rand42), to compare with
+# Beagle's already-computed sporadic BAF numbers.
+RUNID=${1:-v3_low_seg128_baf}
+EP=${2:-best}
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+CFG=configs/test_${RUNID}_sporadic_baf.yaml
+
+cat > $CFG <<YAML
+runId: ${RUNID}
+dataset: LOS
+chromosome: 22
+chromosomes: [22]
+segLen: 128
+overlap: 16
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+useGroupNorm: False
+batchSize: 256
+batchSizeTest: 8
+learningRate: 0.00005
+loss: hybridFocalLoss
+dosageLossLambda: 0.1
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+maskMode: sporadic
+missingRatio: 0.25
+dynamicRatio: True
+bertStrategy: False
+benchmarkAll: False
+perVariantR2: True
+useWandB: False
+finetuning: False
+epoch: ${EP}
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [42]
+YAML
+echo "wrote $CFG (runId=$RUNID epoch=$EP); $(date)"
+
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12442
+export NCCL_DEBUG=WARN
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+srun --export=ALL --gpu-bind=closest python -u test.py --configFile $CFG
+echo "test.py exited with $?"
+for IDX in 0 1 2; do
+    echo "=== benchmark idx=$IDX (sporadic BAF) ==="
+    python -u benchmark.py --configFile $CFG --randState 42 --missingLevelIdx $IDX
+done
+echo "done $(date)"
+echo "Outputs: analysis/${RUNID}_phased_biunet_BAF_PV_rand42_LOS_chr22_ALL_seg128_overlap16_missing{5,15,25}%.csv"

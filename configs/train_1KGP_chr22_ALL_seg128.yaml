@@ -1,0 +1,40 @@
+# BiU-Net on chromosome 22 of the 1000 Genomes Project.
+runId: exp1
+dataset: 1KGP
+chromosome: 22
+chromosomes: [22]
+segLen: 128
+overlap: 16
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 32
+kernelSize: 7
+stride: 1
+dropoutRate: 0.0
+useGroupNorm: False
+batchSize: 128
+batchSizeTest: 16
+learningRate: 0.00042
+loss: hybridWeightedFocalLoss
+sampling: normal
+upsamplingRatio: 0.8
+useWandB: False
+finetuning: False
+totalEpochs: 400
+warmupEpochs: 10
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.5
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+epoch: 0

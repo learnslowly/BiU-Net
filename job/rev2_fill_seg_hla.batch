@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_fill_seghla
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=08:00:00
+# Fill-in: HLA chr6 seg1024 HDF5s at all rand states.
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+export HDF5_USE_FILE_LOCKING=FALSE
+unset SLURM_TRES_PER_TASK
+srun "$PYBIN" -u segmenting.py --configFile configs/seg_HLA_chr6_ALL_seg1024_fill.yaml --createFilteredSNPs False

@@ -1,0 +1,38 @@
+runId: LONI_Feb25_2304
+dataset: 1KGP
+chromosome: 22
+segLen: 128
+overlap: 16
+population: ALL
+
+# Auxiliary for training
+model: unet
+bioAware: True
+useWandB: True
+batchSize: 512
+dropoutRate: 0.0
+learningRate: 0.0008
+loss: hybridWeightedFocalLoss
+sampling: normal
+upsamplingRatio: 0.8
+finetuning: True
+targetBin: 0.500-1.000
+totalEpochs: 800
+warmupEpochs: 1
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01 #0.01
+seed: 42
+missingRatio: 0.5 #0.5
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking modelDir:
+# archive/exp1/LOS_chr22_ALL_seg128_overlap8/checkpoints analysisDir:
+# archive/exp1/LOS_chr22_ALL_seg128_overlap8/analysis
+benchmarkAll: False
+batchSizeTest: 1024
+epoch: 0
+

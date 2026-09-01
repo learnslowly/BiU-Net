@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp_seg_fl
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=10:00:00
+#SBATCH --array=1-22
+# seg-1 (full-length) HDF5s for all SGDP chromosomes: train/val chunks, unmasked test,
+# and masked test at 3 rates x 3 rand states.
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+C=$SLURM_ARRAY_TASK_ID
+export OMP_NUM_THREADS=1
+export HDF5_USE_FILE_LOCKING=FALSE
+unset SLURM_TRES_PER_TASK
+srun "$PYBIN" -u segmenting.py --configFile configs/seg_SGDP_chr${C}_ALL_seg-1.yaml --createFilteredSNPs False
+RC=$?
+echo "End chr$C (rc=$RC)"
+exit $RC

@@ -1,0 +1,14 @@
+# Beagle on chromosome 14 of the 1000 Genomes Project, genome-wide comparison.
+runId: 1KGP_genomewide
+model: beagle
+dataset: 1KGP
+chromosome: 14
+chromosomes: [14]
+population: ALL
+segLen: 1024
+overlap: 128
+benchmarkAll: True
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+epoch: 0

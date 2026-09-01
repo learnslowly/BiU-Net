@@ -1,0 +1,40 @@
+#!/bin/bash
+#SBATCH --output=logs/test_ft50_ep10_colwise_%j.log
+#SBATCH --time=03:00:00
+#SBATCH --job-name=test_ft50_ep10
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:1
+
+# Early-checkpoint eval: ft50 colwise model at epoch 10, across 5/15/25/50% colwise.
+
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12360
+export NCCL_DEBUG=WARN
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+CKPT="checkpoints/checkpoint_v3_low_seg128_ft50_LOS_chr22_ALL_seg128_overlap16_epoch_10.pth"
+CONFIG_FILE="configs/test_v3low_seg128_ft50_colwise_ep10.yaml"
+
+echo "Job $SLURM_JOB_ID started $(date); waiting for $CKPT ..."
+for i in $(seq 1 80); do [ -f "$CKPT" ] && break; sleep 30; done
+[ -f "$CKPT" ] || { echo "ERROR: epoch_10 checkpoint never appeared"; exit 1; }
+sleep 20   # let the torch.save finish flushing
+echo "checkpoint found at $(date); running eval"
+
+srun --export=ALL --gpu-bind=closest python -u test.py --configFile $CONFIG_FILE
+echo "test.py exited with $?"
+
+for IDX in 0 1 2 3; do
+    echo "=== benchmark idx=$IDX ==="
+    python -u benchmark.py --configFile $CONFIG_FILE --randState 1042 --missingLevelIdx $IDX
+done
+echo "done $(date)"

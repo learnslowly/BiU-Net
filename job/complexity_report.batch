@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --job-name=biunet_complexity
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --gres=gpu:1
+#SBATCH --mem=32G
+#SBATCH --time=02:00:00
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+mkdir -p Results/complexity_report logs
+
+# Table 2: both architectures profiled at the one configuration the table names.
+"$PYBIN" scripts/complexity_report.py \
+  --configs configs/complexity_reference.yaml \
+  --models unet scda \
+  --logs logs/*.log \
+  --out Results/complexity_report/complexity \
+  --batch-size 1 \
+  --benchmark-batch-size 256 \
+  --device cuda \
+  --warmup 5 \
+  --repeat 20
+
+# Table 1: split sizes and marker counts, read from the split files.
+"$PYBIN" -u scripts/build_dataset_table.py
+
+echo "Tables 1 and 2 -> Results/dataset_summary.csv, Results/complexity_report/"

@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --output=logs/prebake_ft95_%j.log
+#SBATCH --time=00:20:00
+#SBATCH --job-name=prebake_ft95
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+
+# Warm-start seed: copy v3_low_seg128 ep210 weights into an epoch_0 checkpoint under the
+# NEW runId v3_low_seg128_ft95, with optimizer/scheduler stripped so train.py treats it
+# as a clean warm-start (current_epoch=1, fresh curriculum) WITHOUT touching the base
+# v3_low_seg128 checkpoints.
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Job $SLURM_JOB_ID started at $(date)"
+
+python - <<'EOF'
+import torch, os
+BASE = "checkpoints/checkpoint_v3_low_seg128_LOS_chr22_ALL_seg128_overlap16_epoch_210.pth"
+OUT  = "checkpoints/checkpoint_v3_low_seg128_ft95_LOS_chr22_ALL_seg128_overlap16_epoch_0.pth"
+assert os.path.isfile(BASE), f"missing base: {BASE}"
+ckpt = torch.load(BASE, map_location="cpu", weights_only=False)
+sd = ckpt["state_dict"] if isinstance(ckpt, dict) and "state_dict" in ckpt else ckpt
+# strip any torch.compile prefix just in case
+sd = { (k[len("_orig_mod."):] if k.startswith("_orig_mod.") else k): v for k, v in sd.items() }
+assert not os.path.exists(OUT), f"refusing to overwrite existing {OUT}"
+torch.save({"state_dict": sd, "epoch": 0}, OUT)
+print(f"wrote warm-start seed: {OUT}  ({len(sd)} tensors)")
+EOF
+rc=$?
+echo "prebake exited with $rc"
+ls -la checkpoints/checkpoint_v3_low_seg128_ft95_*epoch_0.pth 2>&1
+exit $rc

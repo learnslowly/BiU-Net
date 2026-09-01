@@ -1,0 +1,49 @@
+#!/bin/bash
+#SBATCH --partition=single
+#SBATCH --output=./split/vcf2csv_%A_%a.out
+#SBATCH --time=1-23:00:00
+#SBATCH --job-name=los_2csv
+#SBATCH --nodes=1
+# SBATCH --ntasks=1
+#SBATCH --array=0-8
+
+# Chromosome to process (can be overridden via --export)
+export CHR=${CHR:-6}
+
+# HLA mode for chromosome 6: "none", "only", "both" (can be overridden via --export)
+# Should match the HLA_MODE used in QC script
+export HLA_MODE="${HLA_MODE:-none}"
+
+# Define populations and subsets
+POPULATIONS=('ALL' 'CA' 'AA')
+SUBSETS=("train" "val" "test")
+
+# Calculate population and subset indices from array task ID
+POPULATION_IDX=$((SLURM_ARRAY_TASK_ID / 3))
+SUBSET_IDX=$((SLURM_ARRAY_TASK_ID % 3))
+
+POPULATION=${POPULATIONS[$POPULATION_IDX]}
+SUBSET=${SUBSETS[$SUBSET_IDX]}
+
+# Determine HLA suffix
+if [ "${CHR}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+    HLA_FLAG="--hla"
+    echo "Processing chromosome $CHR (HLA only), population $POPULATION, subset $SUBSET"
+else
+    HLA_FLAG=""
+    echo "Processing chromosome $CHR, population $POPULATION, subset $SUBSET"
+fi
+
+source configs/credentials.sh
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+python vcf2csv.py ${CHR} ${POPULATION} ${SUBSET} ${HLA_FLAG}
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo "Running time: ${hours}h ${minutes}m"

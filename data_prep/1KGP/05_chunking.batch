@@ -1,0 +1,71 @@
+#!/bin/bash
+
+#SBATCH --output=./chunked/chunking_%A_%a.out
+#SBATCH --time=3:00:00
+#SBATCH --job-name=chunk_chr%a
+#SBATCH --partition=workq
+#SBATCH --nodes=10
+#SBATCH --ntasks=10
+#SBATCH --cpus-per-task=20
+#SBATCH --array=0
+
+# Get chromosome from environment (can be overridden via --export)
+export CHR=${CHR:-$SLURM_ARRAY_TASK_ID}
+
+# HLA mode (can be overridden via --export)
+export HLA_MODE=${HLA_MODE:-"auto"}
+
+# Chunk size (can be overridden via --export)
+export CHUNK_SIZE=${CHUNK_SIZE:-1024}
+
+# Auto-detect HLA mode based on chromosome
+if [ "$HLA_MODE" == "auto" ]; then
+    if [ "$CHR" == "6" ]; then
+        REGION_SUFFIX="_HLA"
+        echo "Processing chromosome 6 with HLA suffix"
+    else
+        REGION_SUFFIX=""
+    fi
+elif [ "$HLA_MODE" == "hla_only" ]; then
+    if [ "$CHR" != "6" ]; then
+        echo "ERROR: HLA_MODE=hla_only is only valid for chromosome 6"
+        exit 1
+    fi
+    REGION_SUFFIX="_HLA"
+    echo "Processing chromosome 6 in HLA-ONLY mode"
+elif [ "$HLA_MODE" == "none" ]; then
+    REGION_SUFFIX=""
+else
+    REGION_SUFFIX=""
+fi
+
+echo "=============================================="
+echo "CHUNKING CSV FILES"
+echo "=============================================="
+echo "Chromosome: $CHR"
+echo "Region suffix: $REGION_SUFFIX"
+echo "Chunk size: $CHUNK_SIZE"
+echo "=============================================="
+
+# Activate the environment
+source configs/credentials.sh
+# Ensure no thread oversubscription (optional, but helpful for Python)
+export OMP_NUM_THREADS=1  # Prevent NumPy/Pandas from using extra threads
+unset SLURM_TRES_PER_TASK
+
+# Create output directory
+mkdir -p ./chunked
+
+# Run the Python script using srun
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+srun $CONDA_ENV/bin/python chunking.py --chr ${CHR} --suffix "${REGION_SUFFIX}" --chunk_size ${CHUNK_SIZE}
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# Report timing
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"
+echo "Chunking completed for chromosome ${CHR}!"

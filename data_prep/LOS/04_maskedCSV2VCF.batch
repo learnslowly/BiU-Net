@@ -1,0 +1,91 @@
+#!/bin/bash
+#SBATCH --export=NONE
+#SBATCH --partition=workq
+#SBATCH --time=4:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=36
+#SBATCH --job-name=csv2vcf
+#SBATCH --output=./masked/csv2vcf_chr%a.out
+
+# ============================================================================= Single-
+# node parallel CSV to VCF: 36 combinations per node 3 populations × 3 random states × 4
+# missing levels = 36 parallel processes
+# =============================================================================
+
+# Chromosome (set via --export or array task ID)
+CHROMOSOME="${CHROMOSOME:-$SLURM_ARRAY_TASK_ID}"
+
+# HLA mode (can be overridden via --export)
+HLA_MODE="${HLA_MODE:-none}"
+
+# Activate the environment
+source configs/credentials.sh
+# Add local bin to PATH
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+export BCFTOOLS_PLUGINS=$HOME/local/bin
+
+# Define variables
+DATASET="LOS"
+POPULATIONS=("CA" "AA" "ALL")
+MISSING_LEVELS=("5%" "15%" "25%" "50%")
+RANDOM_STATES=(0 42 1024)
+
+# Determine HLA suffix
+if [ "${CHROMOSOME}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+    HLA_SUFFIX="_HLA"
+    echo "Processing chromosome ${CHROMOSOME} (HLA only)"
+else
+    HLA_SUFFIX=""
+    echo "Processing chromosome ${CHROMOSOME}"
+fi
+
+echo "Starting 36 parallel CSV2VCF jobs for chromosome ${CHROMOSOME}..."
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# Run all 36 combinations in parallel
+for POP in "${POPULATIONS[@]}"; do
+    for RAND_ST in "${RANDOM_STATES[@]}"; do
+        for MISS in "${MISSING_LEVELS[@]}"; do
+            (
+                MASKED_CSV="masked/${RAND_ST}/${MISS}/${DATASET}_chr${CHROMOSOME}_${POP}_missing${MISS}_masked${HLA_SUFFIX}.csv.gz"
+                ORIGINAL_VCF="split/${DATASET}_chr${CHROMOSOME}_${POP}_test${HLA_SUFFIX}.vcf.gz"
+                OUTPUT_VCF="masked/${RAND_ST}/${MISS}/${DATASET}_chr${CHROMOSOME}_${POP}_missing${MISS}_masked${HLA_SUFFIX}.vcf"
+
+                # Check inputs exist
+                if [ ! -f "$ORIGINAL_VCF" ]; then
+                    echo "[CHR${CHROMOSOME}] ${POP}/rs${RAND_ST}/${MISS} ERROR: VCF not found"
+                    exit 1
+                fi
+                if [ ! -f "$MASKED_CSV" ]; then
+                    echo "[CHR${CHROMOSOME}] ${POP}/rs${RAND_ST}/${MISS} ERROR: CSV not found"
+                    exit 1
+                fi
+
+                # Convert CSV to VCF
+                python maskedCSV2VCF.py --original $ORIGINAL_VCF --masked $MASKED_CSV --output $OUTPUT_VCF 2>&1 | tail -1
+
+                # Compress and index
+                bgzip -c $OUTPUT_VCF > ${OUTPUT_VCF}.gz
+                tabix -p vcf ${OUTPUT_VCF}.gz
+                rm -f $OUTPUT_VCF
+
+                echo "[CHR${CHROMOSOME}] ${POP}/rs${RAND_ST}/${MISS} DONE"
+            ) &
+        done
+    done
+done
+
+# Wait for all background jobs to complete
+wait
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo "All 36 jobs completed for chromosome ${CHROMOSOME}"
+echo "Running time: ${hours}h ${minutes}m"

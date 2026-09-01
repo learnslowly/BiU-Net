@@ -1,0 +1,103 @@
+#!/bin/bash
+#SBATCH --output=../minimac4/eval/SGDP_chr22_ALL/bmk_%A_%a.log
+#SBATCH --time=0-23:30:00
+#SBATCH --job-name=bmk_sgdp_m
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --array=0-11
+#SBATCH --exclusive
+
+# Define random states
+RANDOM_STATES=(0 42 1024)
+IMP_METHOD="minimac4"
+DATASET="SGDP"
+CHR=22
+POP="ALL"
+
+# Config file
+CONFIG_FILE="../${IMP_METHOD}/eval/${DATASET}_chr${CHR}_${POP}/${DATASET}_chr${CHR}_${POP}.yaml"
+# Get number of missing levels
+NUM_MISSING_LEVELS=$(python -c "
+from config.modelconfig import ModelConfig
+config = ModelConfig.from_yaml('$CONFIG_FILE')
+print(len(config.missing))
+")
+
+# Calculate indices for this array task
+RAND_IDX=$((SLURM_ARRAY_TASK_ID / NUM_MISSING_LEVELS))
+MISS_IDX=$((SLURM_ARRAY_TASK_ID % NUM_MISSING_LEVELS))
+RANDOM_STATE=${RANDOM_STATES[$RAND_IDX]}
+
+# Define custom log directories and files
+LOG_DIR="../${IMP_METHOD}/eval/${DATASET}_chr${CHR}_${POP}/"
+mkdir -p $LOG_DIR
+
+# Create descriptive log file names
+LOG_FILE="${LOG_DIR}/benchmark_rand${RANDOM_STATE}_missidx${MISS_IDX}.log"
+
+source configs/credentials.sh
+starttime=`date +'%Y-%m-%d %H:%M:%S'`
+echo "Array task $SLURM_ARRAY_TASK_ID: random state index $RAND_IDX (value $RANDOM_STATE), missing level index $MISS_IDX"
+
+# Run the command with output redirected to custom log file
+python -u benchmark.py --configFile $CONFIG_FILE --randState $RANDOM_STATE --missingLevelIdx $MISS_IDX --impMethod $IMP_METHOD > $LOG_FILE 2>&1
+
+endtime=`date +'%Y-%m-%d %H:%M:%S'`
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"
+
+# Submit a dependency job to combine the results after all array tasks complete
+if [ $SLURM_ARRAY_TASK_ID -eq 0 ]; then
+  # Submit a job that will run after all array tasks complete
+  sbatch --dependency=afterok:$SLURM_ARRAY_JOB_ID --job-name=combine_bmk --output=${LOG_DIR}/combine_results.log <<EOF
+#!/bin/bash
+#SBATCH --time=0-00:30:00
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+
+source configs/credentials.sh
+# Run the Python code directly with heredoc
+python - "$CONFIG_FILE" <<'PYEOF'
+import os
+import glob
+import re
+import pandas as pd
+import sys
+from config.modelconfig import ModelConfig
+
+def combine_csv_files(config, combined_filename, rand_state):
+    # Identify all the CSV files matching the pattern
+    csv_files = glob.glob(f"{config.analysisDir}/{config.runId}_rand{rand_state}_*.csv")
+    csv_files_sorted = sorted(csv_files, key=lambda x: float(re.search(r'.*?missing(\d+)%.*?', x).group(1)))
+    
+    if not csv_files_sorted:
+        print(f"No CSV files found for random state {rand_state}")
+        return
+        
+    combined_df = pd.concat([pd.read_csv(csv_file) for csv_file in csv_files_sorted])
+    combined_df.to_csv(combined_filename, index=False, sep=',')
+    print(f"Combined CSV saved to {combined_filename}")
+
+# Get the config file path from command line
+config_file = sys.argv[1]
+config = ModelConfig.from_yaml(config_file)
+
+# Random states used in the benchmark
+random_states = [0, 42, 1024]
+
+for rand_state in random_states:
+    output_file = os.path.join(config.analysisDir, f"{config.runId}_{rand_state}.csv")
+    combine_csv_files(config, output_file, rand_state)
+    print(f"Combined results for random state {rand_state}")
+PYEOF
+EOF
+
+  echo "Submitted combination job that will run after all benchmark tasks complete"
+fi

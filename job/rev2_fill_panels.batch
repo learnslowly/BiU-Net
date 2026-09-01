@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_fill_panels
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=06:00:00
+#SBATCH --array=0-1
+
+# Revision-2: build the trimmed Beagle panel (train+val = 2285 samples, split variant
+# axis, test excluded) for the 19 new chromosomes, mirroring the existing chr22
+# ref_trimmed.
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+CHRS=(6 19)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+D=$GENOTYPE_DATA_DIR/1KGP
+OUT=$D/ref/1KGP_chr${C}_ALL_ref_trimmed.vcf.gz
+
+if [ -s "$OUT" ] && [ -s "$OUT.tbi" ]; then
+  echo "chr$C trimmed panel already exists, skipping."
+  exit 0
+fi
+
+echo "chr$C: merging train+val -> trimmed panel"
+bcftools merge --threads $SLURM_CPUS_PER_TASK -Oz -o $OUT \
+  $D/split/1KGP_chr${C}_ALL_train.vcf.gz \
+  $D/split/1KGP_chr${C}_ALL_val.vcf.gz
+tabix -p vcf $OUT
+
+echo "chr$C: samples=$(bcftools query -l $OUT | wc -l) variants=$(bcftools index -n $OUT)"
+echo "DONE chr$C"

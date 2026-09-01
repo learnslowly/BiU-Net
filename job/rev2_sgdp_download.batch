@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp_dl
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=08:00:00
+
+# Revision-2 SGDP track: fetch the 18 missing per-chromosome phased BCFs (Reich lab SGDP
+# phased_data2021; chr 1/6/19/22 already on disk).
+set -uo pipefail
+cd $GENOTYPE_DATA_DIR/SGDP/orig
+source configs/credentials.sh
+
+BASE="https://sharehost.hms.harvard.edu/genetics/reich_lab/sgdp/phased_data2021"
+
+echo "connectivity probe:"
+if ! curl -sSIL -k --max-time 30 "$BASE/chr.sgdp.pub.22.bcf.csi" | head -1; then
+  echo "ERROR: no outbound network from this compute node, run the downloads elsewhere."
+  exit 1
+fi
+
+FAIL=0
+for C in 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21; do
+  for EXT in bcf bcf.csi; do
+    OUT="chr.sgdp.pub.${C}.${EXT}"
+    if [ -s "$OUT" ]; then echo "[SKIP] $OUT exists"; continue; fi
+    echo "[DL] $OUT"
+    curl -L -k --fail --retry 10 -C - -o "$OUT" "$BASE/$OUT" || { echo "[FAIL] $OUT"; FAIL=1; }
+  done
+done
+
+echo "[CHECK] final inventory:"
+ls -lh chr.sgdp.pub.*.bcf | wc -l
+export PATH=$HOME/local/bin:$PATH
+for C in 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21; do
+  bcftools view -h chr.sgdp.pub.${C}.bcf >/dev/null || FAIL=1
+done
+echo "DONE (fail=$FAIL)"
+exit $FAIL

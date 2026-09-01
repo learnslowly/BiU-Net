@@ -1,0 +1,15 @@
+# SGDP chr6 (full chromosome) seg1024 segmentation, chr6 joins the genome-wide set per
+# the final revision scope (HLA-region analysis dropped).
+runId: seg_sgdp_chr6
+dataset: SGDP
+chromosome: 6
+chromosomes: [6]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

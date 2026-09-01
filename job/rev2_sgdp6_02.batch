@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp6_2csv
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=12:00:00
+#SBATCH --array=0-2
+
+# Revision-2 SGDP track: VCF -> CSV for the 19 new chromosomes x {train,val,test}.
+set -euo pipefail
+source configs/credentials.sh
+CHRS=(6)
+SUBSETS=(train val test)
+C=${CHRS[$((SLURM_ARRAY_TASK_ID / 3))]}
+S=${SUBSETS[$((SLURM_ARRAY_TASK_ID % 3))]}
+
+cd $GENOTYPE_DATA_DIR/SGDP
+export OMP_NUM_THREADS=1
+
+echo "vcf2csv: SGDP chr$C ALL $S"
+"$PYBIN" -u vcf2csv.py SGDP "$C" ALL "$S"
+echo "DONE chr$C $S"

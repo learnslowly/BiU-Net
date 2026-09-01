@@ -1,0 +1,72 @@
+#!/bin/bash
+#SBATCH --job-name=inspect_rev2
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=01:00:00
+
+# Revision-2 campaign, Phase 0 inventory.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export PATH=$HOME/local/bin:$PATH
+D=$GENOTYPE_DATA_DIR/1KGP
+T=$(mktemp -d)
+
+echo "########## 1. Sample composition & leakage check (chr22 + chr1 + chr10) ##########"
+for c in 22 1 10; do
+  echo "--- chr$c ---"
+  bcftools query -l $D/ref/1KGP_chr${c}_ALL_ref.vcf.gz   | sort > $T/ref.txt
+  bcftools query -l $D/split/1KGP_chr${c}_ALL_train.vcf.gz | sort > $T/train.txt
+  bcftools query -l $D/split/1KGP_chr${c}_ALL_val.vcf.gz   | sort > $T/val.txt
+  bcftools query -l $D/split/1KGP_chr${c}_ALL_test.vcf.gz  | sort > $T/test.txt
+  echo "counts: ref=$(wc -l < $T/ref.txt) train=$(wc -l < $T/train.txt) val=$(wc -l < $T/val.txt) test=$(wc -l < $T/test.txt)"
+  echo "ref∩train=$(comm -12 $T/ref.txt $T/train.txt | wc -l)  ref∩val=$(comm -12 $T/ref.txt $T/val.txt | wc -l)  ref∩test=$(comm -12 $T/ref.txt $T/test.txt | wc -l)"
+  echo "ref-only (usable extra training samples)=$(comm -23 $T/ref.txt <(cat $T/train.txt $T/val.txt $T/test.txt | sort) | wc -l)"
+done
+echo "sample lists saved for chr22 run:"
+cp $T/ref.txt   logs/rev2_ref_samples_chr22.txt
+cp $T/train.txt logs/rev2_train_samples_chr22.txt
+cp $T/val.txt   logs/rev2_val_samples_chr22.txt
+cp $T/test.txt  logs/rev2_test_samples_chr22.txt
+
+echo
+echo "########## 2. Per-chromosome variant counts (ref vs split, from index) ##########"
+for c in $(seq 1 22); do
+  r=$(bcftools index -n $D/ref/1KGP_chr${c}_ALL_ref.vcf.gz 2>/dev/null || echo NA)
+  tr=$(bcftools index -n $D/split/1KGP_chr${c}_ALL_train.vcf.gz 2>/dev/null || echo NA)
+  te=$(bcftools index -n $D/split/1KGP_chr${c}_ALL_test.vcf.gz 2>/dev/null || echo NA)
+  echo "chr$c  ref=$r  train=$tr  test=$te"
+done
+
+echo
+echo "########## 3. seg1024 HDF5 inventory (res/) ##########"
+echo "-- per-chr seg1024 train/val HDF5 counts --"
+for c in $(seq 1 22); do
+  n=$(ls res/1KGP_chr${c}_ALL_*_seg1024_overlap128.hdf5 2>/dev/null | wc -l)
+  echo "chr$c: $n files"
+done
+echo "-- chr22 examples --"
+ls -lh res/1KGP_chr22_ALL_*seg1024* 2>/dev/null | head -8
+
+echo
+echo "########## 4. Masked test sets (BiUNet/data/1KGP/masked) ##########"
+echo "-- directory layout (rand_state/missing) --"
+find data/1KGP/masked -maxdepth 2 -type d 2>/dev/null | sort | head -30
+echo "-- which chromosomes have masked hdf5 at seg1024 --"
+find data/1KGP/masked -name '*seg1024*masked.hdf5' 2>/dev/null | sed 's/.*1KGP_chr/chr/;s/_ALL.*//' | sort | uniq -c
+echo "-- and seg128 --"
+find data/1KGP/masked -name '*seg128*masked.hdf5' 2>/dev/null | sed 's/.*1KGP_chr/chr/;s/_ALL.*//' | sort | uniq -c
+
+echo
+echo "########## 5. Where does BiUNet/data/1KGP point ##########"
+ls -ld data/1KGP data/1KGP/* 2>/dev/null | head -8
+
+echo
+echo "########## 6. v3_low 1KGP checkpoints on hand ##########"
+ls -lh checkpoints/ 2>/dev/null | grep -i "v3_low_1KGP" | tail -6
+
+rm -rf $T
+echo "DONE"

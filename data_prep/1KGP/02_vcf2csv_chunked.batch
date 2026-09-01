@@ -1,0 +1,68 @@
+#!/bin/bash
+#SBATCH --partition=bigmem
+#SBATCH --output=./split/vcf2csv_chunked_%A_%a.out
+#SBATCH --time=20:00:00
+#SBATCH --job-name=1kgp_2csv_chunk
+#SBATCH --mem=100G
+#SBATCH --cpus-per-task=8
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --array=0-2%1
+
+# Get chromosome from environment (can be overridden via --export)
+export CHR=${CHR:-$SLURM_ARRAY_TASK_ID}
+
+# Population filter (can be overridden via --export)
+export POPULATIONS=${POPULATIONS:-"ALL"}
+
+# HLA mode (can be overridden via --export)
+export HLA_MODE=${HLA_MODE:-"auto"}
+
+# Auto-detect HLA mode based on chromosome
+if [ "$HLA_MODE" == "auto" ]; then
+    if [ "$CHR" == "6" ]; then
+        REGION_SUFFIX="_HLA"
+        echo "Processing chromosome 6 with HLA suffix"
+    else
+        REGION_SUFFIX=""
+    fi
+elif [ "$HLA_MODE" == "hla_only" ]; then
+    if [ "$CHR" != "6" ]; then
+        echo "ERROR: HLA_MODE=hla_only is only valid for chromosome 6"
+        exit 1
+    fi
+    REGION_SUFFIX="_HLA"
+    echo "Processing chromosome 6 in HLA-ONLY mode"
+elif [ "$HLA_MODE" == "none" ]; then
+    REGION_SUFFIX=""
+else
+    REGION_SUFFIX=""
+fi
+
+# Define subsets
+SUBSETS=("train" "val" "test")
+
+# Calculate subset index from array task ID
+SUBSET_IDX=$SLURM_ARRAY_TASK_ID
+SUBSET=${SUBSETS[$SUBSET_IDX]}
+
+echo "Processing chromosome $CHR, population(s) $POPULATIONS, subset $SUBSET, suffix $REGION_SUFFIX"
+echo "Using chunked processing for memory efficiency"
+
+source configs/credentials.sh
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# Process each population in POPULATIONS
+for POPULATION in ${POPULATIONS}; do
+    echo "Converting VCF to CSV for population: ${POPULATION} (chunked mode)"
+    python vcf2csv_chunked.py ${CHR} ${POPULATION} ${SUBSET} --suffix "${REGION_SUFFIX}" --chunk_size 10000
+done
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"

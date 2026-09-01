@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_beagle_posmatch
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=3-00:00:00
+
+# What is the allele-list half of Beagle's reference-target match protecting? Stock
+# Beagle keeps a target record only when Marker.equals holds against a reference record:
+# same chromosome, position, allele list and INFO/END.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+JAVA=/home/$REMOTE_USER/jdk-23.0.2/bin/java
+JAVAC=/home/$REMOTE_USER/jdk-23.0.2/bin/javac
+SRC=$REMOTE_ROOT/beagle/src/src
+WORK=$REMOTE_ROOT/beagle_posmatch
+STOCK_JAR=$REMOTE_ROOT/beagle/src/beagle.jar
+
+DS=${1:-SGDP}
+CHR=${2:-22}
+RAND=${3:-0}
+MISS=${4:-5%}
+OUTDIR="$WORK/run"
+mkdir -p "$OUTDIR"
+
+echo "=== patching ==="
+"$PYBIN" -u scripts/patch_beagle_posmatch.py "$SRC" "$WORK/src" || exit 1
+
+echo "=== compiling ==="
+rm -rf "$WORK/build"; mkdir -p "$WORK/build"
+find "$WORK/src" -name "*.java" > "$WORK/sources.txt"
+echo "$(wc -l < "$WORK/sources.txt") source files"
+"$JAVAC" -nowarn -d "$WORK/build" @"$WORK/sources.txt" 2>&1 | tail -20
+[ -f "$WORK/build/main/Main.class" ] || { echo "ERROR: compile produced no Main.class"; exit 1; }
+( cd "$WORK/build" && "$JAVA" -version >/dev/null 2>&1; \
+  /home/$REMOTE_USER/jdk-23.0.2/bin/jar cfe "$WORK/beagle_posmatch.jar" main.Main . ) || exit 1
+echo "built $WORK/beagle_posmatch.jar"
+
+# Inputs: exactly the files the recorded Beagle runs used, per
+# ../beagle/01_impute_sgdp_chr19.batch.
+DATA=$GENOTYPE_DATA_DIR
+REF="$DATA/1KGP/ref/1KGP_chr${CHR}_ALL_ref.vcf.gz"
+GT="$DATA/${DS}/masked/${RAND}/${MISS}/${DS}_chr${CHR}_ALL_missing${MISS}_masked.vcf.gz"
+echo "ref=$REF"
+echo "gt=$GT"
+for f in "$REF" "$GT"; do
+  [ -s "$f" ] || { echo "ERROR: missing input $f"; exit 1; }
+done
+
+for TAG in stock posmatch; do
+  case $TAG in
+    stock)    JAR="$STOCK_JAR" ;;
+    posmatch) JAR="$WORK/beagle_posmatch.jar" ;;
+  esac
+  echo "=== running $TAG ==="
+  "$JAVA" -Xmx48g -jar "$JAR" \
+      ref="$REF" gt="$GT" impute=false nthreads=16 \
+      out="$OUTDIR/${TAG}_chr${CHR}" 2>&1 | tail -30
+  echo "$TAG exit=$?"
+done
+
+echo "=== marker counts ==="
+for TAG in stock posmatch; do
+  n=$(zcat "$OUTDIR/${TAG}_chr${CHR}.vcf.gz" 2>/dev/null | grep -vc "^#")
+  echo "$TAG output records: ${n:-none}"
+done
+echo "finished $(date)"

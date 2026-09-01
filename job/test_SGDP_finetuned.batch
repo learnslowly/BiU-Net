@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=test_SGDP_finetuned
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:4
+#SBATCH --time=1-00:00:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+# MASTER_PORT, NCCL_SOCKET_IFNAME come from credentials.sh; CUDA_VISIBLE_DEVICES is
+# pinned in the .py.
+
+# Impute each autosome from its own fine-tuned checkpoint.
+for C in $(seq 1 22); do
+  CONF=configs/test_SGDP_finetuned_chr$C.yaml
+  echo "===== chromosome $C: $CONF ====="
+  srun --gpu-bind=closest "$PYBIN" -u test.py --configFile "$CONF"
+done
+echo "End:   $(date)"

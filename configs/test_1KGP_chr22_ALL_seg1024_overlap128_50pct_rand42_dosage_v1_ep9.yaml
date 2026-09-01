@@ -1,0 +1,49 @@
+# Inference config for BiUNet runId=dosage_v1.
+
+runId: dosage_v1
+dataset: 1KGP
+chromosome: 22
+segLen: 1024
+overlap: 128
+population: ALL
+
+# Architecture (must match training)
+model: unet
+bioAware: True
+depth: 6
+nchannels: 32
+kernelSize: 7
+stride: 1
+dropoutRate: 0.0
+
+# Inference-only knobs
+batchSize: 128
+batchSizeTest: 8
+learningRate: 0.0016
+loss: hybridWeightedFocalLoss
+focalAlpha: 0.25
+focalGamma: 2.0
+dosageLossLambda: 0.5
+sampling: normal
+
+# Required by ModelConfig but unused at inference
+useWandB: False
+finetuning: False
+totalEpochs: 200
+warmupEpochs: 8
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.5
+dynamicRatio: False
+bertStrategy: False
+
+# Eval scope
+benchmarkAll: False
+epoch: 20
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+missing: [0.5]
+testRandStates: [42]

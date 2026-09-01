@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --output=logs/benchmark_v3low_1KGP_7bin_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=v3l_1k_7b
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+echo "v3_low 1KGP chr22 ALL 7-bin re-bench started at $(date)"
+
+# Override bins with the 7-bin manuscript scheme via a tmp config that adjusts the
+# existing test_v3_low_<rate>.yaml files in-place.
+for RATE in 5 15 25; do
+  CFG=configs/test_v3_low_${RATE}_7bin.yaml
+  cp configs/test_v3_low_${RATE}.yaml $CFG
+  python -u - <<PY
+import yaml
+p = "$CFG"
+with open(p) as f: cfg = yaml.safe_load(f)
+cfg['bins'] = [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+with open(p, 'w') as f: yaml.safe_dump(cfg, f, sort_keys=False)
+PY
+  echo "=== BiUNet v3_low rate ${RATE} (7-bin) ==="
+  python -u benchmark.py --configFile $CFG --randState 42 --missingLevelIdx 0 2>&1 | grep -E "Bin_R2|Overall|Results saved" | grep -v "confusion"
+  echo "=== Beagle rate ${RATE} (7-bin) ==="
+  python -u benchmark.py --configFile $CFG --randState 42 --missingLevelIdx 0 --impMethod beagle 2>&1 | grep -E "Bin_R2|Overall|Results saved" | grep -v "confusion"
+done
+
+echo "v3_low 1KGP chr22 ALL 7-bin re-bench done at $(date)"

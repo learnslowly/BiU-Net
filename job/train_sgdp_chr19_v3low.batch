@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --output=./logs/train_sgdp_chr19_v3low_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=2-23:59:00
+#SBATCH --job-name=sgdp_chr19_v3
+#SBATCH --partition=gpu4
+#SBATCH --nodes=3
+#SBATCH --ntasks=12
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:4
+
+# --- Conda env ---
+source configs/credentials.sh
+# --- DDP / NCCL setup (GenoBERT pattern; required on this cluster's gpu nodes) ---
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12340
+export NCCL_SOCKET_IFNAME=^lo
+# CUDA_VISIBLE_DEVICES is pinned per local rank inside train.py (before torch import).
+
+# --- HDF5 concurrent-read fix (mandatory for multi-rank reads) ---
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+# Absolute env interpreter -- conda activate is unreliable in batch jobs here.
+CONF=configs/SGDP_chr19_ALL_seg128_v3low.yaml
+
+# NB on scaling: this is 1 node x 4 A100 = 4 ranks -> effective batch 256*4 = 1024.
+
+echo "Start: $(date)   Nodes: $SLURM_JOB_NODELIST   World: $SLURM_NTASKS"
+srun --gpu-bind=closest "${PYBIN}" -u train.py --configFile ${CONF}
+echo "End:   $(date)"

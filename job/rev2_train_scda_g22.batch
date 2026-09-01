@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --output=logs/rev2_train_scda_g22_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name=rev2_scda
+#SBATCH --partition=gpu4
+#SBATCH --nodes=4
+#SBATCH --ntasks=16
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+
+# Revision-2 SCDA baseline: same genome-wide protocol as rev2_train_g22 but on 4 gpu4
+# nodes (16x A100).
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12370
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+# Per-job compile caches (see rev2_train_g22.batch: shared /tmp caches corrupted by a
+# cancelled job crash the next job with JSONDecodeError).
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache_$SLURM_JOB_ID
+export TORCHINDUCTOR_CACHE_DIR=/tmp/$USER/inductor_cache_$SLURM_JOB_ID
+mkdir -p $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR
+
+CONFIG_FILE="configs/train_1KGP_g22_ALL_seg1024_scda_ref.yaml"
+
+echo "Job $SLURM_JOB_ID started at $(date) on $SLURM_JOB_NODELIST"
+echo "Master: $MASTER_ADDR:$MASTER_PORT  WORLD_SIZE=$SLURM_NTASKS"
+
+srun --export=ALL --gpu-bind=closest "$PYBIN" -u train.py --configFile $CONFIG_FILE
+RC=$?
+
+echo "Job $SLURM_JOB_ID finished at $(date) (srun rc=$RC)"
+exit $RC

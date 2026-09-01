@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --output=archive/exp1/HLA_chr6_ALL_seg128_overlap64/slurm_%A_%a.log
+#SBATCH --time=0-23:30:00
+#SBATCH --job-name=t_hla
+#SBATCH --partition=workq
+# SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=12
+#SBATCH --array=0-3
+# SBATCH --gres=gpu:1 #uncomment when using GPU partition
+
+# Setup environment
+source configs/credentials.sh
+# Set thread limits
+export OMP_NUM_THREADS=8
+export MKL_NUM_THREADS=8
+
+CONFIG_FILE="archive/exp1/HLA_chr6_ALL_seg128_overlap64/test.yaml"
+
+# Record start time
+start_time=$(date +%s)
+echo "SLURM Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Started at: $(date)"
+
+# Run the python script with SLURM array task ID as missing index
+python -u test.py --configFile $CONFIG_FILE --missingIndex $SLURM_ARRAY_TASK_ID
+
+# Record end time
+end_time=$(date +%s)
+elapsed_time=$((end_time - start_time))
+elapsed_minutes=$((elapsed_time / 60))
+elapsed_seconds=$((elapsed_time % 60))
+echo "SLURM Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Finished at: $(date)"
+echo "Total runtime: ${elapsed_minutes} min ${elapsed_seconds} sec"

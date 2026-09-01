@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_eval_chr22ft
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+#SBATCH --time=06:00:00
+
+# Impute and score chr22 with the specialised model, then leave the comparison against
+# the manuscript to scripts/build_rev2_vs_manuscript.py.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12396
+export NCCL_SOCKET_IFNAME=^lo
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+CFG=configs/test_v3low_chr22_ft_chr22.yaml
+
+srun --export=ALL --gpu-bind=closest "$PYBIN" -u test.py --configFile "$CFG"
+RC=$?
+[ $RC -ne 0 ] && { echo "test.py failed (rc=$RC)"; exit $RC; }
+
+FAIL=0
+for RS in 0 42 1024; do
+  for IDX in 0 1 2; do
+    "$PYBIN" -u benchmark.py --configFile "$CFG" --randState "$RS" --missingLevelIdx "$IDX" || FAIL=1
+  done
+done
+echo "chr22 specialisation scored $(date) (fail=$FAIL)"
+exit $FAIL

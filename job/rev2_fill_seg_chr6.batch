@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_fill_seg6
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=08:00:00
+# Fill-in: 1KGP chr6 masked seg1024 HDF5s (the only chromosome missing them).
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+export HDF5_USE_FILE_LOCKING=FALSE
+unset SLURM_TRES_PER_TASK
+srun "$PYBIN" -u segmenting.py --configFile configs/seg_1KGP_chr6_ALL_seg1024_fill.yaml --createFilteredSNPs False

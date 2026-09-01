@@ -1,0 +1,3 @@
+Target markers with no reference match, SGDP, 22 autosomes. A marker is retained only when the panel holds a record with the same chromosome, position and allele list. (a) count of excluded markers per chromosome, segmented by minor allele frequency. (b) excluded markers in a frequency band over all target markers in that band, pooled across the 22 autosomes: 17,659 / 331,887 at 0.1 to 0.5%, 112,485 / 3,213,493 at 1 to 10%.
+
+*Source: Results/beagle_excluded_markers_SGDP.csv. Code: scripts/plot_beagle_excluded_markers.py*

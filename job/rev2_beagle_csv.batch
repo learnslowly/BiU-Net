@@ -1,0 +1,66 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_bglcsv
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=04:00:00
+#SBATCH --array=0-170
+
+# Revision-2: Beagle imputed VCF -> CSV for benchmark.py (--impMethod beagle reads
+# ../beagle/impute/{rs}/{m%}/1KGP_chr{C}_ALL_missing{m%}_imputed.csv.gz).
+set -euo pipefail
+source configs/credentials.sh
+
+CHRS=(1 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21)
+RANDS=(0 42 1024)
+RATES=("5%" "15%" "25%")
+export CHR=${CHRS[$((SLURM_ARRAY_TASK_ID / 9))]}
+export RAND_ST=${RANDS[$(((SLURM_ARRAY_TASK_ID % 9) / 3))]}
+export MISSING_PERC=${RATES[$((SLURM_ARRAY_TASK_ID % 3))]}
+export DATASET="1KGP"
+export POP="ALL"
+
+cd $REMOTE_ROOT/beagle
+
+OUT=impute/$RAND_ST/$MISSING_PERC/1KGP_chr${CHR}_ALL_missing${MISSING_PERC}_imputed.csv.gz
+if [ -s "$OUT" ]; then echo "chr$CHR rand$RAND_ST $MISSING_PERC CSV exists, skipping."; exit 0; fi
+
+"$PYBIN" << 'EOF'
+import os, gzip, re
+import pandas as pd
+
+DATASET = os.environ["DATASET"]; CHR = os.environ["CHR"]; POP = os.environ["POP"]
+RAND_ST = os.environ["RAND_ST"]; MISSING_PERC = os.environ["MISSING_PERC"]
+
+INPUT_FILE = f'impute/{RAND_ST}/{MISSING_PERC}/{DATASET}_chr{CHR}_{POP}_missing{MISSING_PERC}_imputed.vcf.gz'
+OUTPUT_FILE = INPUT_FILE.replace('.vcf.gz', '.csv.gz')
+
+def parse_vcf(in_file, out_file):
+    with gzip.open(in_file, 'rt') as f:
+        lines = [line for line in f if not line.startswith('##')]
+    header = lines[0].split()
+    data = [line.split() for line in lines[1:]]
+    genotype = pd.DataFrame(data, columns=header)
+    genotype = pd.concat([genotype.iloc[:, [1]], genotype.iloc[:, 9:]], axis=1)
+    conversion_dict = {'0|0': 1, '0|1': 2, '1|0': 3, '1|1': 4}
+    genotype = genotype.assign(
+        **{col: pd.to_numeric(genotype[col].map(conversion_dict), errors='coerce', downcast='integer')
+           for col in genotype.columns[1:]}
+    )
+    genotype = genotype.set_index('POS')
+    if DATASET in ("LOS", "1KGP"):
+        pattern = re.compile(r'\d+$')
+        genotype.columns = [pattern.search(c).group() if pattern.search(c) else c for c in genotype.columns]
+    elif DATASET in ("SGDP", "HLA"):
+        genotype.columns = range(1, len(genotype.columns) + 1)
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with gzip.open(out_file, 'wt') as f:
+        genotype.to_csv(f, index=True)
+
+print(f"{INPUT_FILE} -> {OUTPUT_FILE}")
+parse_vcf(INPUT_FILE, OUTPUT_FILE)
+print("Done!")
+EOF
+echo "DONE chr$CHR rand$RAND_ST $MISSING_PERC"

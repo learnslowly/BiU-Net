@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_probes
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=01:00:00
+
+# Alignment-ablation and specialisation tables for ARTIFACTS.md.
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+"$PYBIN" -u scripts/build_rev2_probes.py
+exit $?

@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --output=./split/vcf2csv_%A_%a.out
+#SBATCH --time=20:00:00
+#SBATCH --job-name=sgdp_2csv
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=32
+#SBATCH --array=0-23%12
+
+# Fixed chromosome 22
+CHR=6
+
+# Define populations and subsets
+POPULATIONS=("ALL" "Africa" "America" "CentralAsiaSiberia" "EastAsia" "Oceania" "SouthAsia" "WestEurasia")
+SUBSETS=("train" "val" "test")
+
+# Calculate population and subset indices from array task ID
+POPULATION_IDX=$((SLURM_ARRAY_TASK_ID / 3))
+SUBSET_IDX=$((SLURM_ARRAY_TASK_ID % 3))
+
+POPULATION=${POPULATIONS[$POPULATION_IDX]}
+SUBSET=${SUBSETS[$SUBSET_IDX]}
+
+echo "Processing chromosome $CHR, population $POPULATION, subset $SUBSET"
+
+source configs/credentials.sh
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+# Modified python script call to handle single population/subset
+python vcf2csv.py ${CHR} ${POPULATION} ${SUBSET}
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"

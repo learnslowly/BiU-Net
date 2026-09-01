@@ -1,0 +1,15 @@
+# Fill-in: 1KGP chr6 seg1024 masked-test HDF5s (train/val/test hdf5s already exist and
+# are skipped by segmenting.py's exists-check).
+runId: seg_1kgp_chr6_fill
+dataset: 1KGP
+chromosome: 6
+chromosomes: [6]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

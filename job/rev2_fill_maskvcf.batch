@@ -1,0 +1,44 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_fill_maskvcf
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=06:00:00
+#SBATCH --array=0-17
+
+# Revision-2: convert masked test CSVs -> Beagle input VCFs for the 19 new chromosomes x
+# 3 rand states x 3 missing rates (171 tasks).
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+CHRS=(6 19)
+RANDS=(0 42 1024)
+RATES=("5%" "15%" "25%")
+C=${CHRS[$((SLURM_ARRAY_TASK_ID / 9))]}
+RS=${RANDS[$(((SLURM_ARRAY_TASK_ID % 9) / 3))]}
+P=${RATES[$((SLURM_ARRAY_TASK_ID % 3))]}
+
+D=$GENOTYPE_DATA_DIR/1KGP
+IN_VCF=$D/split/1KGP_chr${C}_ALL_test.vcf.gz
+IN_CSV=$D/masked/$RS/$P/1KGP_chr${C}_ALL_missing${P}_masked.csv.gz
+OUT_VCF=$D/masked/$RS/$P/1KGP_chr${C}_ALL_missing${P}_masked.vcf
+
+if [ -s "$OUT_VCF.gz" ] && [ -s "$OUT_VCF.gz.tbi" ]; then
+  echo "chr$C rand$RS $P already converted, skipping."
+  exit 0
+fi
+if [ ! -s "$IN_CSV" ]; then
+  echo "ERROR: masked CSV missing: $IN_CSV"
+  exit 1
+fi
+
+echo "chr$C rand$RS $P: CSV -> VCF"
+"$PYBIN" -u $D/maskedCSV2VCF.py --original $IN_VCF --masked $IN_CSV --output $OUT_VCF
+bgzip -f $OUT_VCF
+tabix -p vcf $OUT_VCF.gz
+echo "DONE chr$C rand$RS $P"

@@ -1,0 +1,286 @@
+#!/bin/bash
+#SBATCH --partition=gpu2
+#SBATCH --time=20:00:00
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --job-name=1kgp_qc
+#SBATCH --output=qc/logs/chr%a.out
+# SBATCH --array=1-5,7-21
+
+set -euo pipefail  # Improved error handling
+
+# Get chromosome number from array task ID (can be overridden via --export)
+export CHR=${CHR:-$SLURM_ARRAY_TASK_ID}
+
+# Population filter (can be overridden via --export) Options: "ALL" (all samples), "EAS
+# EUR AFR AMR SAS" (specific populations), or "ALL" (just ALL population)
+export POPULATIONS=${POPULATIONS:-"ALL"}
+
+# Load necessary modules and set up environment module load vcftools bcftools plink
+# export PATH=$HOME/local/bin:$PATH export
+# LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+
+# Define input files and directories Define and export in one step
+
+export METADATA_FILE="orig/GRCh38/integrated_call_samples.20130502.ALL.ped"
+export QC_DIR="qc"
+export SPLIT_DIR="split"
+export SUBSET_DIR="subsets"
+export LOG_DIR="${QC_DIR}/logs"
+export DATASET="1KGP"
+
+# HLA-only mode for chromosome 6 (can be overridden via --export)
+export HLA_MODE=${HLA_MODE:-"auto"}
+
+# Auto-detect HLA mode based on chromosome
+if [ "$HLA_MODE" == "auto" ]; then
+    if [ "$CHR" == "6" ]; then
+        export HLA_ONLY=false  # Changed default to false for full chr6
+        export REGION_SUFFIX=""
+        export INPUT_REF="ref/${DATASET}_chr${CHR}_ALL_ref.vcf.gz"
+        echo "Processing chromosome 6 (full chromosome)"
+    else
+        export HLA_ONLY=false
+        export REGION_SUFFIX=""
+        export INPUT_REF="ref/${DATASET}_chr${CHR}_ALL_ref.vcf.gz"
+    fi
+elif [ "$HLA_MODE" == "hla_only" ]; then
+    if [ "$CHR" != "6" ]; then
+        echo "ERROR: HLA_MODE=hla_only is only valid for chromosome 6"
+        exit 1
+    fi
+    export HLA_ONLY=true
+    export REGION_SUFFIX="_HLA"
+    export INPUT_REF="ref/HLA_chr6_ALL_ref.vcf.gz"
+    echo "Processing chromosome 6 in HLA-ONLY mode"
+else
+    export HLA_ONLY=false
+    export REGION_SUFFIX=""
+    export INPUT_REF="ref/${DATASET}_chr${CHR}_ALL_ref.vcf.gz"
+fi
+
+# Create necessary directories
+mkdir -p ${QC_DIR}/temp ${SPLIT_DIR} ${SUBSET_DIR} ${LOG_DIR}
+
+# Record start time
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# Step 1: Process population information
+echo "Processing population information..."
+bcftools query -l ${INPUT_REF} | sed 's/^0_//' > ${QC_DIR}/temp/chr${CHR}${REGION_SUFFIX}_ids.txt
+python3 - <<EOF
+import csv
+import os
+from collections import Counter
+
+# Get environment variables
+QC_DIR = os.environ['QC_DIR']
+CHR = os.environ['CHR']
+METADATA_FILE = os.environ['METADATA_FILE']
+SUBSET_DIR = os.environ['SUBSET_DIR']
+DATASET = os.environ['DATASET']
+REGION_SUFFIX = os.environ.get('REGION_SUFFIX', '')
+
+with open(f"{QC_DIR}/temp/chr{CHR}{REGION_SUFFIX}_ids.txt") as f:
+    vcf_samples = set(line.strip() for line in f)
+
+population_to_superpop = {
+    # East Asian (EAS)
+    "CHB": "EAS", "JPT": "EAS", "CHS": "EAS", "CDX": "EAS", "KHV": "EAS", "CHD": "EAS",
+
+    # European (EUR)
+    "CEU": "EUR", "TSI": "EUR", "GBR": "EUR", "FIN": "EUR", "IBS": "EUR",
+
+    # African (AFR)
+    "YRI": "AFR", "LWK": "AFR", "GWD": "AFR", "MSL": "AFR", "ESN": "AFR",
+
+    # Admixed American (AMR)
+    "ASW": "AMR", "ACB": "AMR", "MXL": "AMR", "PUR": "AMR", "CLM": "AMR", "PEL": "AMR",
+
+    # South Asian (SAS)
+    "GIH": "SAS", "PJL": "SAS", "BEB": "SAS", "STU": "SAS", "ITU": "SAS"
+}
+
+pop_samples = {}
+
+with open(METADATA_FILE) as f:
+    reader = csv.DictReader(f, delimiter="\t")
+    for row in reader:
+        sample = row['Individual_ID'].strip()
+        race = row['Population'].strip()
+        gender = row['Gender'].strip()
+        if race in population_to_superpop:
+            pop_samples[sample] = (population_to_superpop[race], gender)
+
+common_samples = {s: pop_samples[s] for s in pop_samples if s in vcf_samples}
+
+print(f"Total samples in metadata: {len(pop_samples)}")
+print(f"Total samples in VCF: {len(vcf_samples)}")
+print(f"Common samples: {len(common_samples)}")
+print(f"Population distribution: {dict(Counter(race for race, _ in common_samples.values()))}")
+
+with open(f"{QC_DIR}/temp/population_info_chr{CHR}{REGION_SUFFIX}.txt", 'w') as out:
+    for sample, (suppop, gender) in common_samples.items():
+        out.write(f"{sample}\t{suppop}\t{gender}\n")
+
+for suppop in {"EAS", "EUR", "AFR", "AMR", "SAS", "ALL"}:
+    with open(f"{SUBSET_DIR}/{DATASET}_chr{CHR}_{suppop}{REGION_SUFFIX}_ids.txt", 'w') as f:
+        if suppop == "ALL":
+            for sample in common_samples:
+                f.write(f"{sample}\n")
+        else:
+            for sample, (race, _) in common_samples.items():
+                if race == suppop:
+                    f.write(f"{sample}\n")
+
+with open(f"{QC_DIR}/temp/Done_chr{CHR}{REGION_SUFFIX}.signal", 'w') as f:
+    f.write("Done generating regions sample IDs.")
+EOF
+
+# Wait for the signal file to appear
+while [ ! -f "${QC_DIR}/temp/Done_chr${CHR}${REGION_SUFFIX}.signal" ]; do
+    sleep 1
+done
+
+echo "Python population processing completed. Population files created:"
+ls -lh ${SUBSET_DIR}/${DATASET}_chr${CHR}_*${REGION_SUFFIX}_ids.txt | awk '{print $9, $5}'
+
+# **STEP 2: POPULATION-SPECIFIC PROCESSING ###
+echo "Populations to process: ${POPULATIONS}"
+for SUPPOP in ${POPULATIONS}; do
+    export SUPPOP
+    echo ""
+    echo "============================================="
+    echo "Processing population ${SUPPOP} for chromosome ${CHR}${REGION_SUFFIX}..."
+    echo "============================================="
+
+    # Step 2.1: Extract population-specific VCF
+    if [ "$SUPPOP" = "ALL" ]; then
+        cp ${INPUT_REF} ${QC_DIR}/${DATASET}_chr${CHR}_${SUPPOP}${REGION_SUFFIX}.vcf.gz
+        cp ${INPUT_REF}.tbi ${QC_DIR}/${DATASET}_chr${CHR}_${SUPPOP}${REGION_SUFFIX}.vcf.gz.tbi
+    else
+        bcftools view -S ${SUBSET_DIR}/${DATASET}_chr${CHR}_${SUPPOP}${REGION_SUFFIX}_ids.txt ${INPUT_REF} -Oz -o ${QC_DIR}/${DATASET}_chr${CHR}_${SUPPOP}${REGION_SUFFIX}.vcf.gz
+        tabix -p vcf ${QC_DIR}/${DATASET}_chr${CHR}_${SUPPOP}${REGION_SUFFIX}.vcf.gz
+    fi
+
+    # Step 2.2: Create stratified train/val/test splits
+    python3 - <<EOF
+import csv
+import random
+import os
+from collections import defaultdict
+
+# Get shell variables via environment
+SUPPOP = os.environ['SUPPOP']
+CHR = os.environ['CHR']
+QC_DIR = os.environ['QC_DIR']
+SUBSET_DIR = os.environ['SUBSET_DIR']
+DATASET = os.environ['DATASET']
+REGION_SUFFIX = os.environ.get('REGION_SUFFIX', '')
+population_bins = defaultdict(list)
+
+with open(f"{QC_DIR}/temp/population_info_chr{CHR}{REGION_SUFFIX}.txt") as f:
+    for line in f:
+        sample, race, gender = line.strip().split("\t")
+        bin_key = f"{race}_{gender}"
+        population_bins[bin_key].append(sample)
+
+def split_list(lst, train_ratio=0.8, val_ratio=0.1):
+    random.seed(42)
+    shuffled = lst.copy()
+    random.shuffle(shuffled)
+    n = len(shuffled)
+    train_size = int(n * train_ratio)
+    val_size = int(n * val_ratio)
+    train = shuffled[:train_size]
+    val = shuffled[train_size:train_size + val_size]
+    test = shuffled[train_size + val_size:]
+    return train, val, test
+
+split_samples = {
+    "train": [],
+    "val": [],
+    "test": []
+}
+
+if SUPPOP == "ALL":
+    for bin_key, samples in population_bins.items():
+        train, val, test = split_list(samples)
+        split_samples["train"].extend(train)
+        split_samples["val"].extend(val)
+        split_samples["test"].extend(test)
+else:
+    relevant_bins = {k: v for k, v in population_bins.items() if k.startswith(SUPPOP)}
+    for bin_key, samples in relevant_bins.items():
+        train, val, test = split_list(samples)
+        split_samples["train"].extend(train)
+        split_samples["val"].extend(val)
+        split_samples["test"].extend(test)
+
+for split_name, samples in split_samples.items():
+    output_file = f"{SUBSET_DIR}/{DATASET}_chr{CHR}_{SUPPOP}_{split_name}{REGION_SUFFIX}_ids.txt"
+    with open(output_file, "w") as f:
+        f.write("\n".join(sorted(samples)))
+EOF
+
+    # Step 2.3: Create initial split VCFs
+    for split in train val test; do
+        bcftools view -S ${SUBSET_DIR}/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_ids.txt ${QC_DIR}/${DATASET}_chr${CHR}_${SUPPOP}${REGION_SUFFIX}.vcf.gz -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_initial.vcf.gz
+        tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_initial.vcf.gz
+    done
+
+    # STEP 2.4: Apply HWE and MAF filters
+    for split in train val test; do
+	echo "Processing ${split} split..."
+	# Apply HWE and MAF filtering in one step with vcftools
+	# echo "Running VCFtools for HWE and MAF filtering..."
+	# vcftools --gzvcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_initial.vcf.gz \
+	# 	 --hwe 1e-6 \
+	# 	 --recode --recode-INFO-all \
+	# 	 --stdout | bgzip > ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_hwe.vcf.gz
+	# echo "VCFtools filtering completed"
+	# tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_hwe.vcf.gz
+
+	bcftools +fill-tags ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_initial.vcf.gz -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_hwe.vcf.gz -- -t HWE
+	bcftools filter --include 'MAF>=0.001 & MAF<=0.999 & HWE>1e-6' \
+		 ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_hwe.vcf.gz \
+		 -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}.vcf.gz
+	tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}.vcf.gz
+	echo "Indexing completed for ${split}"
+	# Print summary statistics
+	echo "Summary of SNPs for chromosome ${CHR}${REGION_SUFFIX}, population ${SUPPOP}, ${split} split:"
+        echo "  Initial SNPs: $(bcftools query -f '%ID\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}_initial.vcf.gz | wc -l)"
+        echo "  SNPs after HWE+MAF: $(bcftools query -f '%ID\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}.vcf.gz | wc -l)"
+    done
+
+    # Step 2.5: Find overlapping SNPs across filtered splits
+    echo "Finding overlapping SNPs across filtered splits..."
+    comm -12 <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_train${REGION_SUFFIX}.vcf.gz | sort) \
+	     <(comm -12 <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_val${REGION_SUFFIX}.vcf.gz | sort) \
+		       <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_test${REGION_SUFFIX}.vcf.gz | sort)) \
+	     > ${QC_DIR}/temp/chr${CHR}_${SUPPOP}${REGION_SUFFIX}_common_positions.txt
+
+    # Step 2.6: Create final split VCFs with overlapping SNPs and simplify format
+    echo "Creating final split VCFs with overlapping SNPs..."
+    for split in train val test; do
+	bcftools view -R ${QC_DIR}/temp/chr${CHR}_${SUPPOP}${REGION_SUFFIX}_common_positions.txt \
+	    ${QC_DIR}/temp/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}.vcf.gz | \
+	    bcftools annotate -x FORMAT,^FORMAT/GT -Oz -o ${SPLIT_DIR}/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}.vcf.gz
+	tabix -p vcf ${SPLIT_DIR}/${DATASET}_chr${CHR}_${SUPPOP}_${split}${REGION_SUFFIX}.vcf.gz
+    done
+    overlap_count=$(wc -l < ${QC_DIR}/temp/chr${CHR}_${SUPPOP}${REGION_SUFFIX}_common_positions.txt | awk '{print $1}')
+    echo "SNPs in final overlap: ${overlap_count}"
+
+done
+
+# Record end time and calculate duration
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo "Pipeline completed successfully for chromosome ${CHR}${REGION_SUFFIX}!"
+echo "Running time: ${hours}h ${minutes}m"

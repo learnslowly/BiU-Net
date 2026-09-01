@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH --output=logs/rev2_cache_1kgp_%A_%a.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=rev2_cache_1kgp
+#SBATCH --partition=workq
+#SBATCH --array=1-22
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+
+# Prebuild factorized .compact.npz sidecars for the 1KGP genome-wide seg1024 train+val
+# HDF5s, one chromosome per array task, so the v3low_ref_g22 extension job loads
+# preloadData=True caches instead of 24 ranks each re-decompressing every source file on
+# the GPU nodes.
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+C=$SLURM_ARRAY_TASK_ID
+
+echo "chr$C cache build started $(date)"
+"$PYBIN" -u scripts/build_compact_cache.py \
+    "res/1KGP_chr${C}_ALL_train_chunk*_seg1024_overlap128.hdf5" \
+    "res/1KGP_chr${C}_ALL_val_chunk*_seg1024_overlap128.hdf5"
+RC=$?
+echo "chr$C cache build finished $(date) (rc=$RC)"
+exit $RC

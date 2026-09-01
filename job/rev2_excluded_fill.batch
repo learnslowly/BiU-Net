@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_excl_fill
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=08:00:00
+
+# The two chromosomes whose excluded-marker scoring failed on a length mismatch between
+# the test and training splits.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export MPLBACKEND=Agg
+SEG=seg1024_overlap128
+
+FAIL=0
+for C in 1 19; do
+  CFG="configs/test_SGDP_chrft_${C}.yaml"
+  for RS in 0 42 1024; do
+    for IDX in 0 1 2; do
+      case $IDX in 0) M="5%";; 1) M="15%";; 2) M="25%";; esac
+      cell="analysis/ft_sgdp_ftchr_epochbest_phased_biunet_BAT_EX_rand${RS}_SGDP_chr${C}_ALL_${SEG}_missing${M}.csv"
+      [ -s "$cell" ] && { echo "present, skipping chr$C rand$RS $M"; continue; }
+      "$PYBIN" -u benchmark.py --configFile "$CFG" --randState "$RS" \
+          --missingLevelIdx "$IDX" --excludedOnly \
+        || { echo "FAILED chr$C rand$RS $M"; FAIL=1; }
+    done
+  done
+done
+echo "EX cells now: $(ls analysis/ft_sgdp_ftchr_*_BAT_EX_*.csv 2>/dev/null | wc -l)/198"
+echo "finished $(date) (fail=$FAIL)"
+exit $FAIL

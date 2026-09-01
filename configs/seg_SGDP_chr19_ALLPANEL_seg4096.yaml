@@ -1,0 +1,15 @@
+# Aligned-ref segmentation: the 1KGP panel projected onto the SGDP chr19 axis, at the
+# wide window.
+runId: seg_alnpanel_chr19_4096
+dataset: SGDP
+chromosome: 19
+chromosomes: [19]
+segLen: 4096
+overlap: 512
+population: ALLPANEL
+model: unet
+missing: []
+testRandStates: []
+batchSize: 256
+batchSizeTest: 8
+seed: 42

@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=tables_region
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=02:00:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=4
+unset SLURM_TRES_PER_TASK
+
+# The per-bin tables of the region-specific models, from the benchmark cells.
+mkdir -p Results
+"$PYBIN" -u scripts/build_region_tables.py
+# The markers Beagle left uncalled, from the same cells.
+"$PYBIN" -u scripts/build_ignored_marker_tables.py
+echo "region tables -> Results/exp1_*.csv, Results/exp2_*.csv, Results/beagle_ignored_markers_*.csv"

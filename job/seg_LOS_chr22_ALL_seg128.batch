@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_LOS_chr22_ALL_seg128_%j.log
+#SBATCH --time=08:00:00
+#SBATCH --job-name=seg_LOS_ALL_128
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+srun python -u segmenting.py --configFile configs/seg_LOS_chr22_ALL_seg128.yaml --createFilteredSNPs False

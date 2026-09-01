@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#SBATCH --output=./demo.out
+#SBATCH --job-name=demo
+
+# ##----------CPU-------------- #SBATCH --partition=workq #SBATCH --nodes=8 #SBATCH
+# --ntasks=240 #SBATCH --ntasks-per-node=30 #SBATCH --cpus-per-task=2
+
+# ---------GPU------------
+#SBATCH --partition=gpu2
+#SBATCH --nodes=2
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=30
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:2
+
+# module load cuda/12.2.1
+source configs/credentials.sh
+# Export master address and port for distributed communication
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12345
+
+echo "Node: $SLURM_NODELIST"
+echo "Local Rank: $SLURM_LOCALID"
+echo "Using GPUs: $CUDA_VISIBLE_DEVICES"
+
+srun python demo.py

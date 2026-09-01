@@ -1,0 +1,95 @@
+#!/bin/bash
+#SBATCH --output=logs/train_cw_SGDP_%j.log
+#SBATCH --time=1-00:00:00
+#SBATCH --job-name=cw_SGDP
+#SBATCH --partition=gpu4
+#SBATCH --nodes=4
+#SBATCH --ntasks=16
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:4
+
+# Self-contained SGDP_chr22_ALL colwise model, overlap64, FROM SCRATCH (no base exists).
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+CFG=configs/train_SGDP_chr22_ALL_seg128_overlap64_cw.yaml
+
+# --- 1.
+cat > $CFG <<'YAML'
+runId: v3_low_seg128_cw
+dataset: SGDP
+chromosome: 22
+chromosomes: [22]
+segLen: 128
+overlap: 64
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+useGroupNorm: False
+batchSize: 256
+learningRate: 0.0005
+loss: hybridFocalLoss
+dosageLossLambda: 0.1
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+missingRatio: 0.95
+dynamicRatio: True
+bertStrategy: False
+maskMode: colwise
+preloadData: True
+benchmarkAll: True
+mixedPrecisionTraining: True
+useTorchCompile: True
+torchCompileMode: reduce-overhead
+saveCheckpointFreq: 20
+valFreq: 10
+valSubsetFraction: 0.5
+useWandB: False
+finetuning: False
+totalEpochs: 2000
+warmupEpochs: 10
+cooldownEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+earlyStoppingPatience: 50
+earlyStoppingMinDelta: 0.0001
+curriculumStartRatio: 0.3
+curriculumWarmupEpochs: 200
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+batchSizeTest: 8
+missing: [0.95]
+testRandStates: [0]
+epoch: 0
+YAML
+echo "wrote config; $(date)"
+
+# --- 2.
+export OMP_NUM_THREADS=1
+SLURM_NTASKS=1 SLURM_PROCID=0 python -u segmenting.py --configFile $CFG --createFilteredSNPs False
+echo "segmenting exited with $?; $(date)"
+
+# --- 3.
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12434
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+echo "Job $SLURM_JOB_ID (cw_SGDP) training started at $(date)"
+srun --export=ALL --gpu-bind=closest python -u train.py --configFile $CFG
+echo "finished at $(date)"

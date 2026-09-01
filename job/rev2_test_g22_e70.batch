@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_test_g22_e70
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+#SBATCH --time=12:00:00
+#SBATCH --array=0-21%2
+
+# Revision-2 BiUNet inference: the genome-wide ft_sgdp_g22 model (best) imputes each new
+# chromosome's masked test sets (3 rand states x 5/15/25%). Writes
+# ./impute/{rs}/{m%}/v3low_ref_g22_epoch60_1KGP_chr{C}_..._imputed.csv.gz for
+# benchmark.py.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+CHRS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+CFG=configs/test_v3low_ref_g22_chr${C}_e70.yaml
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+# unique per array task so co-resident tasks never share a rendezvous port
+export MASTER_PORT=$((12352 + SLURM_ARRAY_TASK_ID))
+export NCCL_SOCKET_IFNAME=^lo
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+
+echo "Start chr$C: $(date)  node=$SLURM_JOB_NODELIST"
+srun --export=ALL "$PYBIN" -u test.py --configFile "$CFG"
+RC=$?
+echo "End chr$C: $(date) (srun rc=$RC)"
+exit $RC

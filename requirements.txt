@@ -1,0 +1,20 @@
+# Core
+torch>=2.5          # install the CUDA build matching your driver (see README)
+numpy>=1.24,<2.0
+pandas>=2.0
+scipy
+h5py
+pyyaml
+tqdm
+
+# Metrics / plotting
+scikit-learn
+matplotlib
+seaborn
+
+# Experiment tracking (optional; gated by useWandB in the config)
+wandb
+
+# Figure / table reproduction (Results/Figure_*.py)
+statsmodels
+python-docx      # reads the earlier per-chromosome tables (scripts/manuscript_supp.py)

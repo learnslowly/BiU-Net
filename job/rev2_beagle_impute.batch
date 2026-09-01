@@ -1,0 +1,96 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_beagle
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=64
+#SBATCH --mem=0
+#SBATCH --time=24:00:00
+#SBATCH --array=0-170
+
+# Revision-2 Beagle baseline: 19 new chromosomes x 3 rand states x 3 missing rates,
+# against the trimmed panel (train+val, test excluded), same protocol as the
+# manuscript's chr22.
+set -euo pipefail
+source configs/credentials.sh
+
+CHRS=(1 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21)
+RANDS=(0 42 1024)
+RATES=("5%" "15%" "25%")
+C=${CHRS[$((SLURM_ARRAY_TASK_ID / 9))]}
+RS=${RANDS[$(((SLURM_ARRAY_TASK_ID % 9) / 3))]}
+P=${RATES[$((SLURM_ARRAY_TASK_ID % 3))]}
+
+export PATH=$HOME/local/java/bin:$HOME/local/bin:$PATH
+export JAVA_HOME=$HOME/local/java
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+D=$GENOTYPE_DATA_DIR/1KGP
+BG=$REMOTE_ROOT/beagle
+REF=$D/ref/1KGP_chr${C}_ALL_ref_trimmed.vcf.gz
+MAP=$D/orig/GRCh38/genetic_maps/plink.chr${C}.GRCh38.map
+IN=$D/masked/$RS/$P/1KGP_chr${C}_ALL_missing${P}_masked.vcf.gz
+OUTDIR=$BG/impute/$RS/$P
+OUT=$OUTDIR/1KGP_chr${C}_ALL_missing${P}_imputed.vcf.gz
+
+if [ -s "$OUT" ] && [ -s "$OUT.tbi" ]; then
+  echo "chr$C rand$RS $P already imputed, skipping."; exit 0
+fi
+for f in "$REF" "$MAP" "$IN"; do
+  [ -s "$f" ] || { echo "ERROR: missing input $f"; exit 1; }
+done
+mkdir -p $OUTDIR
+
+echo "Beagle: chr$C rand$RS $P  (ref=trimmed train+val panel)"
+java -Xmx230g -jar $BG/src/beagle.jar \
+    gt=$IN \
+    ref=$REF \
+    map=$MAP \
+    out=${OUT%.vcf.gz} \
+    impute=false \
+    ne=200000 \
+    nthreads=$SLURM_CPUS_PER_TASK
+
+tabix -p vcf $OUT
+
+# Convert imputed VCF -> CSV in place (what benchmark.py --impMethod beagle reads).
+cd $BG
+export DATASET="1KGP" POP="ALL" CHR=$C RAND_ST=$RS MISSING_PERC=$P
+"$PYBIN" << 'EOF'
+import os, gzip, re
+import pandas as pd
+
+DATASET = os.environ["DATASET"]; CHR = os.environ["CHR"]; POP = os.environ["POP"]
+RAND_ST = os.environ["RAND_ST"]; MISSING_PERC = os.environ["MISSING_PERC"]
+
+INPUT_FILE = f'impute/{RAND_ST}/{MISSING_PERC}/{DATASET}_chr{CHR}_{POP}_missing{MISSING_PERC}_imputed.vcf.gz'
+OUTPUT_FILE = INPUT_FILE.replace('.vcf.gz', '.csv.gz')
+
+def parse_vcf(in_file, out_file):
+    with gzip.open(in_file, 'rt') as f:
+        lines = [line for line in f if not line.startswith('##')]
+    header = lines[0].split()
+    data = [line.split() for line in lines[1:]]
+    genotype = pd.DataFrame(data, columns=header)
+    genotype = pd.concat([genotype.iloc[:, [1]], genotype.iloc[:, 9:]], axis=1)
+    conversion_dict = {'0|0': 1, '0|1': 2, '1|0': 3, '1|1': 4}
+    genotype = genotype.assign(
+        **{col: pd.to_numeric(genotype[col].map(conversion_dict), errors='coerce', downcast='integer')
+           for col in genotype.columns[1:]}
+    )
+    genotype = genotype.set_index('POS')
+    if DATASET in ("LOS", "1KGP"):
+        pattern = re.compile(r'\d+$')
+        genotype.columns = [pattern.search(c).group() if pattern.search(c) else c for c in genotype.columns]
+    elif DATASET in ("SGDP", "HLA"):
+        genotype.columns = range(1, len(genotype.columns) + 1)
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with gzip.open(out_file, 'wt') as f:
+        genotype.to_csv(f, index=True)
+
+print(f"{INPUT_FILE} -> {OUTPUT_FILE}")
+parse_vcf(INPUT_FILE, OUTPUT_FILE)
+print("Done!")
+EOF
+echo "DONE chr$C rand$RS $P (impute + csv)"

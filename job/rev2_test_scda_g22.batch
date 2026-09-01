@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_test_scda
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+#SBATCH --time=12:00:00
+#SBATCH --array=0-18%12
+
+# Revision-2 BiUNet inference: the genome-wide scda_ref_g22 model (epoch 24) imputes
+# each new chromosome's masked test sets (3 rand states x 5/15/25%). Writes
+# ./impute/{rs}/{m%}/scda_ref_g22_epoch24_1KGP_chr{C}_..._imputed.csv.gz for
+# benchmark.py.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+CHRS=(1 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+CFG=configs/test_scda_ref_g22_chr${C}.yaml
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12342
+export NCCL_SOCKET_IFNAME=^lo
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+
+echo "Start chr$C: $(date)  node=$SLURM_JOB_NODELIST"
+srun --export=ALL --gpu-bind=closest "$PYBIN" -u test.py --configFile "$CFG"
+RC=$?
+echo "End chr$C: $(date) (srun rc=$RC)"
+exit $RC

@@ -1,0 +1,13 @@
+runId: seg_sgdp_chr22
+dataset: SGDP
+chromosome: 22
+chromosomes: [22]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_mask_chr6
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=06:00:00
+# Fill-in: 1KGP chr6 sporadic masking (5/15/25% x rand 0/42/1024).
+set -euo pipefail
+cd $GENOTYPE_DATA_DIR/1KGP
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+"$PYBIN" -u masking.py --dataset 1KGP --chromosome 6 --missingRatios 0.05 0.15 0.25
+echo DONE

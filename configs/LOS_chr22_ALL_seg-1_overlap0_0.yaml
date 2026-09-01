@@ -1,0 +1,58 @@
+# Regular configuration parameters
+
+runId: ~          # Empty runId - will be set automatically
+dataset: LOS
+chromosome: 22
+segLen: -1
+overlap: 0
+population: ALL
+
+# Auxiliary for training
+model: scda
+bioAware: False
+useWandB: True
+batchSize: 1024
+dropoutRate: 0.0
+learningRate: ~  # Empty - will be filled by grid search
+loss: focalLoss
+sampling: normal
+upsamplingRatio: 0.8
+
+totalEpochs: 800
+warmupEpochs: 10
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.012 #0.01
+seed: 0
+missingRatio: 0.25 #0.15
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking modelDir:
+# archive/exp1/LOS_chr22_ALL_seg128_overlap16/checkpoints analysisDir:
+# archive/exp1/LOS_chr22_ALL_seg128_overlap16/analysis
+benchmarkAll: True
+batchSizeTest: 1024
+epoch: 0
+
+# SLURM settings
+slurm_settings:
+  partition: gpu2
+  nodes: 3
+  ntasks: 6
+  ntasks-per-node: 2
+  gpus-per-task: 1
+  gres: gpu:2
+
+# Grid search configuration (will be removed from final configs)
+grid_search:
+  run_id_prefix: LONI_Mar01
+  params:
+    learningRate:
+      - 0.0021
+      - 0.0037
+      - 0.0054
+      - 0.0061
+

@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --output=logs/test_colwise_LOS_ALL_gaps_%j.log
+#SBATCH --time=06:00:00
+#SBATCH --job-name=test_cw_gaps
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:1
+
+# Colwise gap rates 5/15/50%, step 2/2: BiUNet inference (all 3 rates in one config),
+# then phased BAT+PV benchmark per rate.
+
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12353
+export NCCL_DEBUG=WARN
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+CONFIG_FILE="configs/test_v3low_seg128_LOS_chr22_ALL_gaps_colwise.yaml"
+start=$(date +%s)
+echo "Job $SLURM_JOB_ID started at $(date)"
+
+srun --export=ALL --gpu-bind=closest python -u test.py --configFile $CONFIG_FILE
+echo "test.py exited with $?"
+
+for IDX in 0 1 2; do
+    echo "=== benchmark idx=$IDX ==="
+    python -u benchmark.py --configFile $CONFIG_FILE --randState 1042 --missingLevelIdx $IDX
+done
+
+end=$(date +%s)
+echo "Elapsed: $(( (end-start)/60 ))m $(( (end-start)%60 ))s"

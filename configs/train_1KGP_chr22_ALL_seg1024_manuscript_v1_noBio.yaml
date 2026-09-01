@@ -1,0 +1,58 @@
+# Ablation: v1 recipe with bioAware=False.
+
+runId: manuscript_v1_noBio
+dataset: 1KGP
+chromosome: 22
+chromosomes: [22]
+segLen: 1024
+overlap: 128
+population: ALL
+
+model: unet
+bioAware: False   # <-- ABLATION: no position channel
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+
+useGroupNorm: False
+batchSize: 256
+learningRate: 0.0005
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+missingRatio: 0.95
+dynamicRatio: True
+bertStrategy: False
+benchmarkAll: True
+
+mixedPrecisionTraining: True
+useTorchCompile: True
+torchCompileMode: reduce-overhead
+saveCheckpointFreq: 50
+valFreq: 10
+valSubsetFraction: 0.5
+useWandB: False
+finetuning: False
+
+totalEpochs: 50
+warmupEpochs: 5
+cooldownEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+
+earlyStoppingPatience: 0   # disabled, we want full 50 epochs
+
+curriculumStartRatio: 0.5
+curriculumWarmupEpochs: 200   # same anneal slope as v1 (so we're at the same effective missingRatio at ep50)
+
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+batchSizeTest: 8
+epoch: 0
