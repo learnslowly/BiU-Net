@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp_chunk
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=04:00:00
+
+# Revision-2 SGDP track: chunk the new train/val CSVs (chunking.py scans split/ and
+# writes chunked/).
+set -euo pipefail
+cd $GENOTYPE_DATA_DIR/SGDP
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+
+"$PYBIN" -u chunking.py
+echo "DONE"

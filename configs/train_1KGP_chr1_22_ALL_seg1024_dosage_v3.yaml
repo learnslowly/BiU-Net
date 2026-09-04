@@ -1,0 +1,50 @@
+# v3 production config: A2 chr22 ablation winner scaled to full-22.
+
+runId: dosage_v3
+dataset: 1KGP
+chromosome: 22
+chromosomes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+segLen: 1024
+overlap: 128
+population: ALL
+
+model: unet
+bioAware: True
+depth: 6
+nchannels: 32
+kernelSize: 7
+stride: 1
+dropoutRate: 0.0
+
+batchSize: 128
+learningRate: 0.0016
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+focalAlpha: 0.25                # ignored by hybridFocal (uses per-class alpha)
+focalGamma: 2.0
+sampling: normal
+missingRatio: 0.5
+dynamicRatio: True              # A2 setting; per-row U[0, 0.5] missing
+bertStrategy: False
+benchmarkAll: False
+
+mixedPrecisionTraining: True
+saveCheckpointFreq: 5
+valFreq: 5
+useWandB: False
+finetuning: False
+
+totalEpochs: 200
+warmupEpochs: 8
+cooldownEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+
+batchSizeTest: 8
+epoch: 0

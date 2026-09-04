@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --output=logs/adaln_build_full_cont_%j.log
+#SBATCH --time=08:00:00
+#SBATCH --job-name=adaln_build_cont
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=0
+
+# Continuation of the ALLPANEL projection (987898 hits its 4 h wall mid-run).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+PARENT_LOG=logs/adaln_build_full_987898.log
+
+LAST=$(grep -aoE "^chr[0-9]+:" "$PARENT_LOG" | tail -1 | tr -dc 0-9)
+START=$(( ${LAST:-0} + 1 ))
+if [ "$START" -gt 22 ]; then
+  echo "parent already finished all 22 chromosomes, nothing to do"
+  exit 0
+fi
+echo "parent completed through chr${LAST:-none}; resuming at chr$START"
+"$PYBIN" -u scripts/align_ref_to_sgdp.py full "$START"
+RC=$?
+echo "continuation finished $(date) (rc=$RC)"
+exit $RC

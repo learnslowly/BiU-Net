@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --output=./logs/test_sgdp_chr19_v3low_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=08:00:00
+#SBATCH --job-name=test_sgdp19
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+
+# --- Conda env ---
+source configs/credentials.sh
+# --- DDP / NCCL setup (GenoBERT pattern; required on this cluster's gpu nodes) ---
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12341
+export NCCL_SOCKET_IFNAME=^lo
+# CUDA_VISIBLE_DEVICES is pinned per local rank inside test.py (before torch import).
+
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+# Absolute env interpreter -- conda activate is unreliable in batch jobs here.
+CONF=configs/test_v3low_seg128_SGDP_chr19_ALL.yaml
+
+# test.py loops ALL testRandStates x missing levels in the config internally (3 states x
+# 3 levels = 9 combos) and writes impute/{rand}/{level}/..._imputed.csv.gz (+
+# _dosage.csv.gz).
+echo "Start: $(date)   Nodes: $SLURM_JOB_NODELIST   World: $SLURM_NTASKS"
+srun --gpu-bind=closest "${PYBIN}" -u test.py --configFile ${CONF}
+echo "End:   $(date)"

@@ -1,0 +1,142 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --time=20:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=gen_ref
+#SBATCH --output=logs/gen_ref.out
+
+# Add local bin to PATH and local lib to LD_LIBRARY_PATH
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+export BCFTOOLS_PLUGINS=$HOME/local/bin
+
+# Strict error handling
+set -euo pipefail
+
+# HLA region coordinates (only relevant for chr6)
+HLA_START=28510020
+HLA_END=33480577
+
+# List of chromosomes to process Add or remove chromosomes as needed
+CHROMOSOMES=("1" "2" "3" "4" "5" "7" "8" "9" "10" "11" "12" "13" "14" "15" "16" "17" "18" "19" "20" "21") # "X" "Y")
+# CHROMOSOMES=("6" "21" "20") CHROMOSOMES=("6") Set number of threads to match SLURM
+# allocation
+THREADS=$SLURM_CPUS_PER_TASK
+
+# Configure temporary directory (using SLURM's temp directory if available)
+if [ -n "${TMPDIR:-}" ]; then
+    TMP_DIR=$(mktemp -d "$TMPDIR/ref_prep_XXXXXX")
+else
+    TMP_DIR=$(mktemp -d)
+fi
+
+if [ ! -d "$TMP_DIR" ]; then
+    echo "Error: Failed to create temporary directory"
+    exit 1
+fi
+
+echo "Starting VCF processing using $THREADS threads..."
+mkdir -p ref
+
+# Function to check file creation
+check_file() {
+    if [ ! -f "$1" ]; then
+        echo "Error: Failed to create $1"
+        exit 1
+    fi
+}
+
+# Process chromosomes in batches to avoid overwhelming the system
+process_chromosome() {
+    local chr=$1
+    echo "Processing chromosome $chr..."
+
+    # 1. Remove duplicate variants
+    echo "Step 1: Removing duplicate variants for chr$chr"
+    bcftools norm -d all -Oz -o "$TMP_DIR/non_dup_chr${chr}_ALL.vcf.gz" \
+        orig/GRCh38/ALL.chr${chr}.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz
+    check_file "$TMP_DIR/non_dup_chr${chr}_ALL.vcf.gz"
+
+    # 2. Ensure only biallelic SNPs
+    echo "Step 2: Filtering for biallelic SNPs for chr$chr"
+    bcftools view --min-alleles 2 --max-alleles 2 -v snps -Oz \
+        -o "$TMP_DIR/biallelic_non_dup_chr${chr}_ALL.vcf.gz" \
+        "$TMP_DIR/non_dup_chr${chr}_ALL.vcf.gz"
+    check_file "$TMP_DIR/biallelic_non_dup_chr${chr}_ALL.vcf.gz"
+
+    # 3. Split multi-allelic sites
+    echo "Step 3: Normalizing variants for chr$chr"
+    if [ "$chr" == "6" ]; then
+        # Special handling for chr6 (keep unfiltered version for HLA extraction)
+        bcftools norm -m -any -Oz \
+            -o "$TMP_DIR/unfiltered_1KGP_chr${chr}_ALL_ref.vcf.gz" \
+            "$TMP_DIR/biallelic_non_dup_chr${chr}_ALL.vcf.gz"
+        check_file "$TMP_DIR/unfiltered_1KGP_chr${chr}_ALL_ref.vcf.gz"
+
+        # Index the unfiltered chr6 file
+        tabix -p vcf "$TMP_DIR/unfiltered_1KGP_chr${chr}_ALL_ref.vcf.gz"
+
+        # Extract HLA region
+        echo "Extracting HLA region for chr6"
+        bcftools view -r 6:${HLA_START}-${HLA_END} -Oz \
+            -o "$TMP_DIR/HLA_chr6_ALL_ref.vcf.gz" \
+            "$TMP_DIR/unfiltered_1KGP_chr${chr}_ALL_ref.vcf.gz"
+        check_file "$TMP_DIR/HLA_chr6_ALL_ref.vcf.gz"
+        tabix -p vcf "$TMP_DIR/HLA_chr6_ALL_ref.vcf.gz"
+
+        # Move HLA files to final location
+        mv "$TMP_DIR"/HLA_chr6_ALL_ref.vcf.gz{,.tbi} ref/
+
+        # Rename unfiltered to final name for consistency
+        mv "$TMP_DIR/unfiltered_1KGP_chr${chr}_ALL_ref.vcf.gz" "$TMP_DIR/1KGP_chr${chr}_ALL_ref.vcf.gz"
+        mv "$TMP_DIR/unfiltered_1KGP_chr${chr}_ALL_ref.vcf.gz.tbi" "$TMP_DIR/1KGP_chr${chr}_ALL_ref.vcf.gz.tbi"
+    else
+        # Standard processing for all other chromosomes (like chr22)
+        bcftools norm -m -any -Oz \
+            -o "$TMP_DIR/1KGP_chr${chr}_ALL_ref.vcf.gz" \
+            "$TMP_DIR/biallelic_non_dup_chr${chr}_ALL.vcf.gz"
+        check_file "$TMP_DIR/1KGP_chr${chr}_ALL_ref.vcf.gz"
+
+        # Index the file
+        tabix -p vcf "$TMP_DIR/1KGP_chr${chr}_ALL_ref.vcf.gz"
+    fi
+
+    # Move final files to ref directory
+    mv "$TMP_DIR"/1KGP_chr${chr}_ALL_ref.vcf.gz{,.tbi} ref/
+
+    # Clean up intermediate files for this chromosome
+    rm -f "$TMP_DIR/non_dup_chr${chr}_ALL.vcf.gz"
+    rm -f "$TMP_DIR/biallelic_non_dup_chr${chr}_ALL.vcf.gz"
+
+    echo "Chromosome $chr processing completed"
+}
+
+# Process chromosomes with limited parallelism to avoid overloading the system Adjust
+# MAX_PARALLEL based on your HPC capabilities
+MAX_PARALLEL=5
+running=0
+for chr in "${CHROMOSOMES[@]}"; do
+    # Wait if we've reached maximum parallel jobs
+    if [ $running -ge $MAX_PARALLEL ]; then
+        wait -n  # Wait for any child process to finish
+        running=$((running - 1))
+    fi
+
+    # Start processing this chromosome in the background
+    process_chromosome "$chr" &
+    running=$((running + 1))
+
+    # Small delay to prevent race conditions when creating files
+    sleep 1
+done
+
+# Wait for all remaining background jobs to complete
+wait
+
+echo "Cleaning up temporary files..."
+rm -rf "$TMP_DIR"
+echo "Temporary files removed."
+echo "All processing completed successfully!"
+exit 0

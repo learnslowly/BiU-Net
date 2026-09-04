@@ -1,0 +1,68 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_chrft_evalblk
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=gpu2
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --time=3-00:00:00
+
+# Evaluates all 44 fine-tuned chromosome models inside ONE allocation.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+NODES=${SLURM_JOB_NUM_NODES:-12}
+# One task per GPU on the node.
+PER_NODE=${SLURM_NTASKS_PER_NODE:-2}
+WORK=()
+for DS in 1KGP SGDP; do
+  for C in $(seq 1 22); do
+    WORK+=("$DS:$C")
+  done
+done
+
+echo "allocation: $NODES nodes x $PER_NODE GPUs, $SLURM_JOB_NODELIST"
+echo "queue: ${#WORK[@]} chromosome evaluations, up to $NODES at a time"
+echo "start $(date)"
+
+# Slurm accepts either --gpus-per-task or --gres on a step, but not always the form that
+# differs from the job's own request.
+STEP_GPU="--gpus-per-task=1"
+if ! srun --exclusive --nodes=1 --ntasks="$PER_NODE" --cpus-per-task=12 $STEP_GPU --gpu-bind=closest true 2>/dev/null; then
+  STEP_GPU="--gres=gpu:$PER_NODE"
+  echo "step GPU request falls back to $STEP_GPU"
+fi
+echo "step GPU request: $STEP_GPU"
+
+# A counting pool rather than a pid map: the cluster runs bash 4.4, whose `wait -n`
+# reports an exit status but cannot report which child it belonged to (`wait -n -p`
+# needs 5.1).
+FAIL=0
+nrun=0
+slot=0
+
+reap() {
+  wait -n
+  local rc=$?
+  nrun=$((nrun - 1))
+  [ $rc -ne 0 ] && { echo "a step exited rc=$rc (see its own line above)"; FAIL=1; }
+  return 0
+}
+
+for item in "${WORK[@]}"; do
+  while [ $nrun -ge "$NODES" ]; do reap; done
+  DS="${item%%:*}"; C="${item##*:}"
+  srun --exclusive --nodes=1 --ntasks="$PER_NODE" --cpus-per-task=12 $STEP_GPU --gpu-bind=closest \
+       --export=ALL,EVAL_DS="$DS",EVAL_C="$C",EVAL_PORT=$((14000 + slot)) \
+       bash scripts/eval_one_chr.sh &
+  nrun=$((nrun + 1))
+  slot=$(((slot + 1) % 200))
+  echo "dispatched $DS chr$C (running $nrun)"
+done
+
+while [ $nrun -gt 0 ]; do reap; done
+
+echo "all evaluations finished $(date) (fail=$FAIL)"
+exit $FAIL

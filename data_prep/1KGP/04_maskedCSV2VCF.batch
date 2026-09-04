@@ -1,0 +1,131 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --time=20:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=csv2vcf_chr%a
+#SBATCH --output=./masked/mask_vcf_%A_%a.out
+#SBATCH --array=0-11  # 1 population × 3 random states × 4 missing levels = 12 combinations
+
+# Get chromosome from environment (can be overridden via --export)
+export CHR=${CHR:-$SLURM_ARRAY_TASK_ID}
+
+# Population filter (can be overridden via --export)
+export POPULATIONS=${POPULATIONS:-"ALL"}
+
+# Activate the environment
+source configs/credentials.sh
+# Add local bin to PATH and local lib to LD_LIBRARY_PATH
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+export BCFTOOLS_PLUGINS=$HOME/local/bin
+
+# Define variables
+DATASET="1KGP"
+MISSING_LEVELS=("5%" "15%" "25%" "50%")
+RANDOM_STATES=(0 42 1024)
+
+# HLA mode (can be overridden via --export)
+export HLA_MODE=${HLA_MODE:-"auto"}
+
+# Auto-detect HLA mode based on chromosome
+if [ "$HLA_MODE" == "auto" ]; then
+    if [ "$CHR" == "6" ]; then
+        REGION_SUFFIX="_HLA"
+        echo "Processing chromosome 6 with HLA suffix"
+    else
+        REGION_SUFFIX=""
+    fi
+elif [ "$HLA_MODE" == "hla_only" ]; then
+    if [ "$CHR" != "6" ]; then
+        echo "ERROR: HLA_MODE=hla_only is only valid for chromosome 6"
+        exit 1
+    fi
+    REGION_SUFFIX="_HLA"
+    echo "Processing chromosome 6 in HLA-ONLY mode"
+elif [ "$HLA_MODE" == "none" ]; then
+    REGION_SUFFIX=""
+else
+    REGION_SUFFIX=""
+fi
+
+# Calculate indices based on array task ID For single population: 3 random states × 4
+# missing levels = 12 combinations
+RAND_ST_IDX=$((SLURM_ARRAY_TASK_ID / 4))         # Integer division by 4 (4 missing levels)
+MISSING_IDX=$((SLURM_ARRAY_TASK_ID % 4))         # Remainder for missing level
+
+# Get the specific values for this task
+RAND_ST="${RANDOM_STATES[$RAND_ST_IDX]}"
+MISSING_LEVEL="${MISSING_LEVELS[$MISSING_IDX]}"
+
+# Process each population in POPULATIONS
+for POPULATION in ${POPULATIONS}; do
+    echo "=============================================="
+    echo "Processing task $SLURM_ARRAY_TASK_ID:"
+    echo "Chromosome: $CHR"
+    echo "Population: $POPULATION"
+    echo "Random State: $RAND_ST"
+    echo "Missing Level: $MISSING_LEVEL"
+    echo "Region suffix: $REGION_SUFFIX"
+    echo "=============================================="
+
+    # Define file paths for this specific combination (with region suffix)
+    MASKED_CSV="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POPULATION}_missing${MISSING_LEVEL}${REGION_SUFFIX}_masked.csv.gz"
+    ORIGINAL_VCF="split/${DATASET}_chr${CHR}_${POPULATION}_test${REGION_SUFFIX}.vcf.gz"
+    OUTPUT_VCF="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POPULATION}_missing${MISSING_LEVEL}${REGION_SUFFIX}_masked.vcf"
+
+    # Create directory if it doesn't exist
+    mkdir -p "masked/${RAND_ST}/${MISSING_LEVEL}"
+
+    echo "Input CSV: $MASKED_CSV"
+    echo "Output VCF: $OUTPUT_VCF.gz"
+
+    # Check if original VCF exists
+    if [ ! -f "$ORIGINAL_VCF" ]; then
+        echo "Warning: Original VCF file not found: $ORIGINAL_VCF"
+        continue
+    fi
+
+    # Check if masked CSV exists
+    if [ ! -f "$MASKED_CSV" ]; then
+        echo "Warning: Masked CSV file not found: $MASKED_CSV"
+        continue
+    fi
+
+    # Run the Python script to modify the VCF file
+    python maskedCSV2VCF.py --original $ORIGINAL_VCF --masked $MASKED_CSV --output $OUTPUT_VCF
+
+    # Compress and index the modified VCF
+    bgzip -c $OUTPUT_VCF > ${OUTPUT_VCF}.gz
+    tabix -p vcf ${OUTPUT_VCF}.gz
+
+    # Remove the uncompressed VCF file
+    rm -f $OUTPUT_VCF
+    echo "Completed: ${OUTPUT_VCF}.gz"
+
+    # === Extract missing genotypes (./.) information ===
+    echo "Extracting missing genotype positions and sample IDs..."
+    MISSING_POS_FILE="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POPULATION}_missing${MISSING_LEVEL}${REGION_SUFFIX}_missing_positions.txt"
+    SAMPLE_NAMES_FILE="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POPULATION}_missing${MISSING_LEVEL}${REGION_SUFFIX}_sample_names.txt"
+    MISSING_SAMPLES_FILE="masked/${RAND_ST}/${MISSING_LEVEL}/${DATASET}_chr${CHR}_${POPULATION}_missing${MISSING_LEVEL}${REGION_SUFFIX}_missing_with_samples.txt"
+
+    # Extract positions and sample indices of missing genotypes
+    bcftools query -f '%CHROM\t%POS[\t%GT]\n' ${OUTPUT_VCF}.gz | awk '
+    {
+        for(i=3; i<=NF; i++) {
+            if ($i == "./.") {
+                print $1, $2, i-2  # CHROM, POS, Sample Index
+            }
+        }
+    }' > $MISSING_POS_FILE
+
+    # Extract sample names
+    bcftools query -l ${OUTPUT_VCF}.gz > $SAMPLE_NAMES_FILE
+
+    # Map sample indices to sample names
+    awk 'NR==FNR {samples[FNR]=$1; next} {print $1, $2, samples[$3]}' $SAMPLE_NAMES_FILE $MISSING_POS_FILE > $MISSING_SAMPLES_FILE
+    echo "Missing genotype positions saved in: $MISSING_SAMPLES_FILE"
+    echo ""
+done
+
+echo "All populations processed for chromosome ${CHR}!"

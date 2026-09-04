@@ -1,0 +1,49 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_excl_sum
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=02:00:00
+
+# Accuracy of the delivered model on the markers a reference-based imputer cannot call.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+$PYBIN - <<'PY'
+import glob
+import numpy as np, pandas as pd
+
+BINS = ["0.1%~0.5%","0.5%~1%","1%~10%","10%~20%","20%~30%","30%~40%","40%~50%"]
+rows = []
+for path in sorted(glob.glob("analysis/ft_sgdp_ftchr_*_BAT_EX_*_SGDP_chr*_ALL_*.csv")):
+    name = path.split("/")[-1]
+    miss = name.rsplit("_missing", 1)[1].replace(".csv", "")
+    chrom = int(name.split("_chr")[1].split("_")[0])
+    df = pd.read_csv(path)
+    df["MAF_bin"] = df["MAF_bin"].astype(str).str.strip()
+    for _, r in df.iterrows():
+        rows.append({"chr": chrom, "missing": miss, "MAF_bin": r["MAF_bin"],
+                     "R2": r["Bin_R2"], "n": r["Num_SNPs"]})
+d = pd.DataFrame(rows)
+
+def wmean(g):
+    w = g["n"].to_numpy(float)
+    return np.average(g["R2"], weights=w) if w.sum() else np.nan
+
+print("SGDP, markers the reference-based imputer excluded, GW-M+FT accuracy\n")
+out = []
+for miss in ("5%", "15%", "25%"):
+    sub = d[d.missing == miss]
+    line = {"missing": miss}
+    for b in BINS + ["Overall"]:
+        s = sub[sub.MAF_bin == b]
+        line[b] = wmean(s) if len(s) else np.nan
+    line["markers"] = int(sub[sub.MAF_bin == "Overall"].groupby("chr")["n"].first().sum())
+    out.append(line)
+t = pd.DataFrame(out).set_index("missing")
+print(t.round(4).to_string())
+t.to_csv("Results/rev2_excluded_recovery_revision2.csv")
+print("\nwrote Results/rev2_excluded_recovery_revision2.csv")
+PY

@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --job-name=train_SGDP_chr22_ALL
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu4
+#SBATCH --nodes=4
+#SBATCH --ntasks=16
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:4
+#SBATCH --time=2-23:59:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+# MASTER_PORT, NCCL_SOCKET_IFNAME come from credentials.sh; CUDA_VISIBLE_DEVICES is
+# pinned in the .py.
+
+CONF=configs/train_SGDP_chr22_ALL_seg128.yaml
+echo "Start: $(date)   Nodes: $SLURM_JOB_NODELIST   World: $SLURM_NTASKS"
+srun --gpu-bind=closest "$PYBIN" -u train.py --configFile "$CONF"
+echo "End:   $(date)"

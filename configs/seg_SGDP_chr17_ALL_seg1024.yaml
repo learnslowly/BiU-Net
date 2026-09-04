@@ -1,0 +1,14 @@
+# SGDP chr17 seg1024 segmentation (revision-2 SGDP track).
+runId: seg_sgdp_chr17
+dataset: SGDP
+chromosome: 17
+chromosomes: [17]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

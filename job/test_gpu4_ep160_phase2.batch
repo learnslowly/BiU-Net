@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --output=logs/test_gpu4_ep160_phase2_%j.log
+#SBATCH --time=02:00:00
+#SBATCH --job-name=ev_gpu4
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:2
+
+# Phase 2: gpu4 ep160 BiUNet eval at chr22 ALL, missing rates 50/70/80/90/95.
+
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12350
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+CONFIG_FILE="configs/test_gpu4_ep160_phase2.yaml"
+
+start=$(date +%s)
+echo "Job $SLURM_JOB_ID started at $(date)"
+
+# Run BiUNet inference for all missing levels in the config
+srun --export=ALL --gpu-bind=closest python -u test.py --configFile $CONFIG_FILE
+echo "test.py exited with $?"
+
+# Run benchmark per missing level for both BiUNet and Beagle
+for IDX in 0 1 2 3 4; do
+    echo "=== benchmark idx=$IDX ==="
+    python -u benchmark.py --configFile $CONFIG_FILE --randState 42 --missingLevelIdx $IDX --useDosage
+    python -u benchmark.py --configFile $CONFIG_FILE --randState 42 --missingLevelIdx $IDX --useDosage --impMethod beagle
+done
+
+end=$(date +%s)
+echo "Elapsed: $(( (end-start)/60 ))m $(( (end-start)%60 ))s"

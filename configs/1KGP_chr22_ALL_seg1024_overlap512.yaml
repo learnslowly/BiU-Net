@@ -1,0 +1,7 @@
+runId: seg1024_ov512
+dataset: 1KGP
+chromosome: 22
+segLen: 1024
+overlap: 512
+population: ALL
+model: unet

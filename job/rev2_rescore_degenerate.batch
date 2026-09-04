@@ -1,0 +1,73 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_rescore_degen
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=3-00:00:00
+
+# Rescore the cells that were written before scoring learned to reject predictions
+# outside the genotype codes.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export MPLBACKEND=Agg
+
+echo "scanning for cells with high accuracy and vanishing R2"
+mapfile -t BAD < <("$PYBIN" - <<'PY'
+import glob, os, sys
+sys.path.insert(0, "scripts")
+import pandas as pd
+import analysis_cells
+
+for path in sorted(glob.glob("analysis/*_phased_*_BAT*.csv")):
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        continue
+    df["MAF_bin"] = df["MAF_bin"].astype(str).str.strip()
+    if len(analysis_cells.degenerate_rows(df)):
+        print(os.path.basename(path))
+
+# A chromosome whose step died part-way leaves fewer than the nine cells a complete
+# evaluation writes.
+RUNS = {"v3low_ftchr": ("1KGP", "epoch30"), "ft_sgdp_ftchr": ("SGDP", "epochbest")}
+for run, (ds, ep) in RUNS.items():
+    for c in range(1, 23):
+        have = glob.glob(f"analysis/{run}_{ep}_phased_biunet_BAT_*_{ds}_chr{c}_ALL_*.csv")
+        if 0 < len(have) < 9:
+            for rs in (0, 42, 1024):
+                for miss in ("5%", "15%", "25%"):
+                    print(f"{run}_{ep}_phased_biunet_BAT_rand{rs}_{ds}_chr{c}"
+                          f"_ALL_seg1024_overlap128_missing{miss}.csv")
+PY
+)
+mapfile -t BAD < <(printf '%s\n' "${BAD[@]}" | sort -u)
+echo "found ${#BAD[@]} cell(s) to rescore"
+[ ${#BAD[@]} -eq 0 ] && { echo "nothing to do"; exit 0; }
+
+FAIL=0
+for name in "${BAD[@]}"; do
+  # v3low_ftchr_epoch30_phased_biunet_BAT_rand0_1KGP_chr3_ALL_seg1024_overlap128_missing5%.csv
+  run=${name%%_epoch*}
+  rand=$(echo "$name" | sed -E 's/.*_rand([0-9]+)_.*/\1/')
+  chrom=$(echo "$name" | sed -E 's/.*_chr([0-9]+)_.*/\1/')
+  ds=$(echo "$name" | sed -E 's/.*_rand[0-9]+_([A-Za-z0-9]+)_chr.*/\1/')
+  miss=$(echo "$name" | sed -E 's/.*_missing([0-9]+%)\.csv/\1/')
+  case "$miss" in "5%") idx=0 ;; "15%") idx=1 ;; "25%") idx=2 ;; *) echo "skip $name"; continue ;; esac
+
+  case "$run" in
+    v3low_ftchr)    cfg="configs/test_1KGP_chrft_${chrom}.yaml" ;;
+    ft_sgdp_ftchr)  cfg="configs/test_SGDP_chrft_${chrom}.yaml" ;;
+    *) echo "no config mapping for run $run ($name); skipping"; continue ;;
+  esac
+  [ -s "$cfg" ] || { echo "missing config $cfg"; FAIL=1; continue; }
+
+  echo "rescoring $ds chr$chrom rand$rand $miss via $cfg"
+  "$PYBIN" -u benchmark.py --configFile "$cfg" --randState "$rand" \
+      --missingLevelIdx "$idx" || { echo "FAILED $name"; FAIL=1; }
+done
+
+echo "rescore finished $(date) (fail=$FAIL)"
+exit $FAIL

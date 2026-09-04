@@ -1,0 +1,14 @@
+# The cohort's own training and validation splits at the wide window.
+runId: seg_sgdp_all_chr1_4096
+dataset: SGDP
+chromosome: 1
+chromosomes: [1]
+segLen: 4096
+overlap: 512
+population: ALL
+model: unet
+missing: []
+testRandStates: []
+batchSize: 256
+batchSizeTest: 8
+seed: 42

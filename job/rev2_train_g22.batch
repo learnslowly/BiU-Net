@@ -1,0 +1,46 @@
+#!/bin/bash
+#SBATCH --output=logs/rev2_train_g22_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name=rev2_g22
+#SBATCH --partition=gpu2
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=24
+#SBATCH --gpus-per-task=1
+
+# Revision-2 genome-wide training: v3_low recipe on 1KGP chr1-22 with reference-panel
+# parity (trainOnVal).
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12360
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+# Per-job compile caches: a cancelled job can leave truncated/duplicated JSON in a
+# shared /tmp cache, and the next job on that node dies with JSONDecodeError("Extra
+# data") inside inductor (this killed job 978812).
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache_$SLURM_JOB_ID
+export TORCHINDUCTOR_CACHE_DIR=/tmp/$USER/inductor_cache_$SLURM_JOB_ID
+mkdir -p $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR
+
+# u19's only interpreter is python3.10, call it directly (conda activate is unreliable
+# inside batch jobs here).
+CONFIG_FILE="configs/train_1KGP_g22_ALL_seg1024_v3low_ref.yaml"
+
+echo "Job $SLURM_JOB_ID started at $(date) on $SLURM_JOB_NODELIST"
+echo "Master: $MASTER_ADDR:$MASTER_PORT  WORLD_SIZE=$SLURM_NTASKS"
+
+srun --export=ALL --gpu-bind=closest "$PYBIN" -u train.py --configFile $CONFIG_FILE
+RC=$?
+
+echo "Job $SLURM_JOB_ID finished at $(date) (srun rc=$RC)"
+# Propagate the real exit code, otherwise a crashed run reads as COMPLETED and afterok
+# dependents fire against a missing checkpoint (happened with 978812).
+exit $RC

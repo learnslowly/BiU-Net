@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_colwise_LOS_ALL_25_%j.log
+#SBATCH --time=04:00:00
+#SBATCH --job-name=seg_cw_los25
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+
+# Column-wise smoke, step 1/3: segment the colwise-masked test CSV (rand_state 1042,
+# missing 25%) into the masked HDF5 the BiUNet test step consumes.
+
+source configs/credentials.sh
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Job $SLURM_JOB_ID started at $(date)"
+srun python -u segmenting.py \
+    --configFile configs/test_v3low_seg128_LOS_chr22_ALL_25_colwise.yaml \
+    --createFilteredSNPs False
+echo "segmenting exited with $?"

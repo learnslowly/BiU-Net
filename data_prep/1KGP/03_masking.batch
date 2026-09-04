@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --time=10:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=mask_chr%a
+#SBATCH --output=./masked/masking_%A_%a.out
+#SBATCH --array=0
+
+# Get chromosome from environment (can be overridden via --export)
+export CHR=${CHR:-$SLURM_ARRAY_TASK_ID}
+
+# Dataset name
+export DATASET=${DATASET:-"1KGP"}
+
+# HLA mode (can be overridden via --export)
+export HLA_MODE=${HLA_MODE:-"auto"}
+
+# Auto-detect HLA mode based on chromosome
+if [ "$HLA_MODE" == "auto" ]; then
+    if [ "$CHR" == "6" ]; then
+        REGION_SUFFIX="_HLA"
+        echo "Processing chromosome 6 with HLA suffix"
+    else
+        REGION_SUFFIX=""
+    fi
+elif [ "$HLA_MODE" == "hla_only" ]; then
+    if [ "$CHR" != "6" ]; then
+        echo "ERROR: HLA_MODE=hla_only is only valid for chromosome 6"
+        exit 1
+    fi
+    REGION_SUFFIX="_HLA"
+    echo "Processing chromosome 6 in HLA-ONLY mode"
+elif [ "$HLA_MODE" == "none" ]; then
+    REGION_SUFFIX=""
+else
+    REGION_SUFFIX=""
+fi
+
+echo "=============================================="
+echo "MASKING GENOTYPE DATA"
+echo "=============================================="
+echo "Chromosome: $CHR"
+echo "Dataset: $DATASET"
+echo "Region suffix: $REGION_SUFFIX"
+echo "=============================================="
+
+# Activate the environment
+source configs/credentials.sh
+# Create output directory
+mkdir -p ./masked
+
+# Run masking script
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+python masking.py \
+    --dataset ${DATASET} \
+    --chromosome ${CHR} \
+    --suffix "${REGION_SUFFIX}" \
+    --missingRatios 0.05 0.15 0.25 0.5
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# Report timing
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"
+echo "Masking completed for chromosome ${CHR}!"

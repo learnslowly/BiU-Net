@@ -1,0 +1,9 @@
+# SGDP chr19 full-length segmentation config (segLen=-1) for the SCDA baseline.
+runId: Segmentation
+dataset: SGDP
+chromosome: 19
+segLen: -1
+overlap: 0
+population: ALL
+unique: False
+model: Any

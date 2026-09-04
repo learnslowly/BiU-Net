@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp6_seg
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --open-mode=append
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=08:00:00
+#SBATCH --array=0-0
+
+# Revision-2 SGDP track: seg1024/overlap128 HDF5 generation per chromosome, train/val
+# chunks (training) + masked test sets at 3 rates x 3 rand states (eval).
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+CHRS=(6)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+CONF=configs/seg_SGDP_chr${C}_ALL_seg1024.yaml
+
+export OMP_NUM_THREADS=1
+export HDF5_USE_FILE_LOCKING=FALSE
+unset SLURM_TRES_PER_TASK
+
+echo "Start chr$C: $(date)"
+srun "$PYBIN" -u segmenting.py --configFile "$CONF" --createFilteredSNPs False
+RC=$?
+echo "End chr$C: $(date) (rc=$RC)"
+exit $RC

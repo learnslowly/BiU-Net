@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --output=logs/phased_sweep_%j.log
+#SBATCH --time=03:00:00
+#SBATCH --job-name=phased
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+
+# Phased genotype r² evaluation: F3 vs Beagle at 25/50/80/90/95% missing, both
+# benchmarkAll=False (masked-only) and benchmarkAll=True (all positions).
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Job $SLURM_JOB_ID started at $(date)"
+
+# rates correspond to indices 0..4 in missing list [0.25, 0.5, 0.8, 0.9, 0.95]
+for IDX in 0 1 2 3 4; do
+    echo "=== rate idx=$IDX ==="
+    # F3 alone
+    echo ">>> F3 BAF"
+    python -u benchmark.py --configFile configs/test_phased_full.yaml --randState 42 --missingLevelIdx $IDX 2>&1 | grep -E "(Overall|MAF_bin|Bin_R2|missing)"
+    echo ">>> F3 BAT"
+    python -u benchmark.py --configFile configs/test_phased_full_BAT.yaml --randState 42 --missingLevelIdx $IDX 2>&1 | grep -E "(Overall|MAF_bin|Bin_R2|missing)"
+    # Beagle alone
+    echo ">>> Beagle BAF"
+    python -u benchmark.py --configFile configs/test_phased_full.yaml --randState 42 --missingLevelIdx $IDX --impMethod beagle 2>&1 | grep -E "(Overall|MAF_bin|Bin_R2|missing)"
+    echo ">>> Beagle BAT"
+    python -u benchmark.py --configFile configs/test_phased_full_BAT.yaml --randState 42 --missingLevelIdx $IDX --impMethod beagle 2>&1 | grep -E "(Overall|MAF_bin|Bin_R2|missing)"
+done
+
+echo "DONE at $(date)"

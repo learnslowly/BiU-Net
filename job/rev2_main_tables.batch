@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_main_tables
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=02:00:00
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+RC=0
+for DS in 1KGP SGDP; do
+  echo "=============== $DS ==============="
+  "$PYBIN" -u scripts/build_rev2_main_tables.py $DS || RC=1
+done
+echo "=============== vs manuscript ==============="
+"$PYBIN" -u scripts/build_rev2_vs_manuscript.py || RC=1
+exit $RC

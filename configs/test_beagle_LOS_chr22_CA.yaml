@@ -1,0 +1,14 @@
+# Beagle on chromosome 22 of the Louisiana Osteoporosis Study, Caucasian cohort.
+runId: exp1
+model: beagle
+dataset: LOS
+chromosome: 22
+chromosomes: [22]
+population: CA
+segLen: 128
+overlap: 16
+benchmarkAll: True
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+epoch: 0

@@ -1,0 +1,47 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_excl_comp
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=04:00:00
+
+# Of the target markers Beagle excluded, how many sit at a position the panel does
+# carry? The earlier classification decided this from a position-level test plus a scan
+# of whatever target VCF was on disk, and that scan can only see mismatches at positions
+# the VCF still covers.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+$PYBIN - <<'PY'
+import gzip
+import numpy as np, pandas as pd
+
+DATA = "$GENOTYPE_DATA_DIR"
+
+def panel_positions(chrom):
+    pos = set()
+    with gzip.open(f"{DATA}/1KGP/ref/1KGP_chr{chrom}_ALL_ref.vcf.gz", "rt") as f:
+        for line in f:
+            if line[0] == "#":
+                continue
+            i = line.index("\t"); j = line.index("\t", i + 1)
+            pos.add(int(line[i + 1:j]))
+    return pos
+
+for chrom in (22, 19, 1):
+    kept = pd.read_csv(
+        f"analysis/Beagle_overlapped_loci_rand0_SGDP_chr{chrom}_missing5%.txt",
+        sep="\t")["locus"].to_numpy()
+    axis = pd.read_csv(f"{DATA}/SGDP/split/SGDP_chr{chrom}_ALL_test.csv.gz",
+                       compression="gzip", index_col=0, usecols=[0]).index.to_numpy()
+    excluded = np.setdiff1d(axis, kept)
+    ref = panel_positions(chrom)
+    in_panel = sum(1 for p in excluded if int(p) in ref)
+    print(f"chr{chrom}: target {len(axis):,}  kept {len(kept):,}  excluded {len(excluded):,}")
+    print(f"    excluded whose POSITION is in the panel: {in_panel:,} "
+          f"({in_panel / len(excluded):.2%} of excluded)")
+    print(f"    excluded whose position is absent      : {len(excluded) - in_panel:,} "
+          f"({1 - in_panel / len(excluded):.2%})", flush=True)
+PY

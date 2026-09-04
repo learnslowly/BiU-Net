@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp_mvcf
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=06:00:00
+#SBATCH --array=0-170
+
+# Revision-2 SGDP track: masked CSV -> Beagle input VCF, 19 chrs x 3 rand states x 3
+# rates.
+set -euo pipefail
+source configs/credentials.sh
+CHRS=(1 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21)
+RANDS=(0 42 1024)
+RATES=("5%" "15%" "25%")
+C=${CHRS[$((SLURM_ARRAY_TASK_ID / 9))]}
+RS=${RANDS[$(((SLURM_ARRAY_TASK_ID % 9) / 3))]}
+P=${RATES[$((SLURM_ARRAY_TASK_ID % 3))]}
+
+cd $GENOTYPE_DATA_DIR/SGDP
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+IN_VCF=split/SGDP_chr${C}_ALL_test.vcf.gz
+IN_CSV=masked/$RS/$P/SGDP_chr${C}_ALL_missing${P}_masked.csv.gz
+OUT_VCF=masked/$RS/$P/SGDP_chr${C}_ALL_missing${P}_masked.vcf
+
+if [ -s "$OUT_VCF.gz" ] && [ -s "$OUT_VCF.gz.tbi" ]; then
+  echo "chr$C rand$RS $P already converted, skipping."; exit 0
+fi
+for f in "$IN_VCF" "$IN_CSV"; do
+  [ -s "$f" ] || { echo "ERROR: missing input $f"; exit 1; }
+done
+
+echo "chr$C rand$RS $P: CSV -> VCF"
+"$PYBIN" -u maskedCSV2VCF.py --original "$IN_VCF" --masked "$IN_CSV" --output "$OUT_VCF"
+bgzip -f "$OUT_VCF"
+tabix -p vcf "$OUT_VCF.gz"
+echo "DONE chr$C rand$RS $P"

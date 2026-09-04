@@ -1,0 +1,41 @@
+# Evaluation of the SCDA baseline on the HLA region of chromosome 6 of the Simons Genome
+# Diversity Project, at checkpoint epoch 19999.
+runId: exp1_scda
+dataset: HLA
+chromosome: 6
+chromosomes: [6]
+segLen: -1
+overlap: 0
+population: ALL
+model: scda
+bioAware: False
+nchannels: 32
+dropoutRate: 0.0
+batchSize: 2048
+batchSizeTest: 1024
+learningRate: 2.83e-06
+loss: crossEntropy
+sampling: normal
+upsamplingRatio: 0.8
+useWandB: False
+finetuning: False
+totalEpochs: 2000
+warmupEpochs: 100
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.05
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+# The reference panel is missing markers this target carries, and this model is scored
+# on all of them: the panel's coverage bounds what a reference-based imputer can report,
+# not what this one is measured on.
+overlappedOnly: False
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+epoch: 19999

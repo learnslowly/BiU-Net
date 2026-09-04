@@ -1,0 +1,15 @@
+# Aligned-ref segmentation: 1KGP test projected onto the SGDP chr11 axis (ALLPANEL
+# population tag), train chunk only, no val/test/masked outputs.
+runId: seg_alnpanel_chr11
+dataset: SGDP
+chromosome: 11
+chromosomes: [11]
+segLen: 1024
+overlap: 128
+population: ALLPANEL
+model: unet
+missing: []
+testRandStates: []
+batchSize: 256
+batchSizeTest: 8
+seed: 42

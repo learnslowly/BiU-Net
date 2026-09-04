@@ -1,0 +1,10 @@
+# SGDP chr19 segmentation config, produces the seg128/overlap16 HDF5 that train.py
+# reads.
+runId: Segmentation
+dataset: SGDP
+chromosome: 19
+segLen: 128
+overlap: 16
+population: ALL
+unique: False
+model: Any

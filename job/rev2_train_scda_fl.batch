@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_scda_fl
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
+#SBATCH --time=2-00:00:00
+#SBATCH --array=1-22
+
+# Manuscript-protocol SCDA: one full-length (seg-1) model per chromosome, single GPU
+# each (matches the March-2025 archive runs).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+C=$SLURM_ARRAY_TASK_ID
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+export MASTER_ADDR=localhost
+export MASTER_PORT=$((13000 + SLURM_ARRAY_TASK_ID))
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}
+export TORCHINDUCTOR_CACHE_DIR=/tmp/$USER/inductor_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}
+mkdir -p $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR
+
+CONF=configs/train_1KGP_chr${C}_ALL_seg-1_scda_fl.yaml
+
+echo "Job $SLURM_JOB_ID task $SLURM_ARRAY_TASK_ID (chr$C) started $(date) on $SLURM_JOB_NODELIST"
+srun --export=ALL "$PYBIN" -u train.py --configFile $CONF
+RC=$?
+echo "chr$C finished $(date) (rc=$RC)"
+exit $RC

@@ -1,0 +1,70 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --time=23:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=36
+#SBATCH --export=NONE
+#SBATCH --job-name=masking
+#SBATCH --output=./masked/masking_chr%a.out
+#SBATCH --array=1-22
+
+# ============================================================================= Single-
+# node parallel masking: 36 combinations per node (1 chromosome each) 3 populations × 3
+# random states × 4 missing ratios = 36 parallel processes 22 nodes for 22 chromosomes
+# =============================================================================
+
+# Get chromosome from array task ID (can be overridden via --export)
+CHR="${CHR:-$SLURM_ARRAY_TASK_ID}"
+
+# HLA mode (can be overridden via --export)
+HLA_MODE="${HLA_MODE:-none}"
+
+# Activate the environment
+source configs/credentials.sh
+# Determine HLA flag
+if [ "${CHR}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+    HLA_FLAG="--hla"
+    echo "Processing chromosome ${CHR} (HLA only)"
+else
+    HLA_FLAG=""
+    echo "Processing chromosome ${CHR}"
+fi
+
+mkdir -p ./masked
+
+echo "Starting 36 parallel masking jobs for chromosome ${CHR}..."
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+# Define arrays
+POPULATIONS=("CA" "AA" "ALL")
+RANDOM_STATES=(0 42 1024)
+MISSING_RATIOS=(0.05 0.15 0.25 0.5)
+
+# Run all 36 combinations in parallel using background jobs
+for POP in "${POPULATIONS[@]}"; do
+    for RAND in "${RANDOM_STATES[@]}"; do
+        for MISS in "${MISSING_RATIOS[@]}"; do
+            echo "Launching: CHR=${CHR}, POP=${POP}, RAND=${RAND}, MISS=${MISS}"
+            python masking.py \
+                --chromosome ${CHR} \
+                --population ${POP} \
+                --random-state ${RAND} \
+                --missing-ratio ${MISS} \
+                ${HLA_FLAG} &
+        done
+    done
+done
+
+# Wait for all background jobs to complete
+wait
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo "All 36 jobs completed for chromosome ${CHR}"
+echo "Running time: ${hours}h ${minutes}m"

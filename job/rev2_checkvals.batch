@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_checkvals
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+"$PYBIN" -u - <<'PY'
+import glob, h5py, numpy as np
+bad = 0
+for pat, tag in ((("res/SGDP_chr*_ALLPANEL_train_chunk000_seg-1_overlap0.hdf5"), "ALLPANEL seg-1"),
+                 (("res/SGDP_chr*_ALL_train_chunk000_seg-1_overlap0.hdf5"), "SGDP seg-1")):
+    for f in sorted(glob.glob(pat)):
+        with h5py.File(f, "r") as h:
+            n, L = h["snps"].shape
+            lo, hi = 127, -128
+            for s in range(0, n, 4096):
+                blk = h["snps"][s:s+4096]
+                lo, hi = min(lo, int(blk.min())), max(hi, int(blk.max()))
+            idx_shape = h["snpsIndex"].shape
+        flag = "" if (lo >= 0 and hi <= 5) else "   <-- OUT OF VOCAB RANGE"
+        if flag: bad += 1
+        print(f"{tag} {f.split('/')[-1][:44]:46s} n={n:7d} L={L:8d} snps[{lo},{hi}] idx={idx_shape}{flag}", flush=True)
+print(f"\nfiles with out-of-range codes: {bad}")
+PY
+exit $?

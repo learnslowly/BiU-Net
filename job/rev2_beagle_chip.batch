@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_bgl_chip
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=64
+#SBATCH --mem=0
+#SBATCH --time=24:00:00
+#SBATCH --array=0-21
+
+# Beagle in the array-to-WGS regime: the target VCF carries only the array positions, so
+# impute=true is what puts the rest of the axis back.
+set -euo pipefail
+source configs/credentials.sh
+
+DS=${1:?usage: sbatch job/rev2_beagle_chip.batch DATASET}
+C=$((SLURM_ARRAY_TASK_ID + 1))
+RS=2000
+P="90%"
+
+export PATH=$HOME/local/java/bin:$HOME/local/bin:$PATH
+export JAVA_HOME=$HOME/local/java
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+D1=$GENOTYPE_DATA_DIR/1KGP
+BG=$REMOTE_ROOT/beagle
+case "$DS" in
+  1KGP) REF=$D1/ref/1KGP_chr${C}_ALL_ref_trimmed.vcf.gz ;;
+  SGDP) REF=$D1/ref/1KGP_chr${C}_ALL_ref.vcf.gz ;;
+  *) echo "unknown dataset: $DS"; exit 2 ;;
+esac
+MAP=$D1/orig/GRCh38/genetic_maps/plink.chr${C}.GRCh38.map
+IN=$GENOTYPE_DATA_DIR/${DS}/masked/${RS}/${P}/${DS}_chr${C}_ALL_missing${P}_target.vcf.gz
+OUTDIR=$BG/impute/$RS/$P
+OUT=$OUTDIR/${DS}_chr${C}_ALL_missing${P}_imputed.vcf.gz
+CSV=${OUT%.vcf.gz}.csv.gz
+
+if [ -s "$CSV" ]; then echo "$DS chr$C already done, skipping."; exit 0; fi
+for f in "$REF" "$MAP" "$IN"; do
+  [ -s "$f" ] || { echo "ERROR: missing input $f"; exit 1; }
+done
+mkdir -p $OUTDIR
+
+echo "Beagle array-to-WGS: $DS chr$C  (ref=$(basename $REF), impute=true)"
+start=$(date +%s)
+java -Xmx230g -jar $BG/src/beagle.jar \
+    gt=$IN ref=$REF map=$MAP out=${OUT%.vcf.gz} \
+    impute=true ne=200000 nthreads=$SLURM_CPUS_PER_TASK
+tabix -f -p vcf $OUT
+echo "imputation $(( ($(date +%s)-start)/60 ))m"
+
+# impute=true writes GT:DS, so the genotype has to be split out of the sample field; the
+# converter the sporadic batches carry assumes a bare genotype.
+"$PYBIN" -u scripts/beagle_vcf_to_csv.py --dataset "$DS" --chromosome "$C" \
+    --rand-state $RS --missing "$P"
+echo "DONE $DS chr$C (impute + csv), total $(( ($(date +%s)-start)/60 ))m"

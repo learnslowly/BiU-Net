@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH --job-name=report_LOS_chr22_AA
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --time=00:30:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=2
+unset SLURM_TRES_PER_TASK
+
+# Aggregate per-bin CSVs (Beagle + BiU-Net + SCDA) over random states into a tab-
+# separated comparison table (metric x method by MAF bin, one block per rate).
+mkdir -p analysis
+"$PYBIN" -u benchmark.py --report --configFile configs/test_seg128_LOS_chr22_AA.yaml --reportScda configs/test_scda_LOS_chr22_AA.yaml | tee "analysis/report_LOS_chr22_AA.tsv"
+echo "report LOS_chr22_AA -> analysis/report_LOS_chr22_AA.tsv"

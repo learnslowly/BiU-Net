@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --job-name=inspect_rev2b
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
+
+# Revision-2 Phase 0, part b: 1.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export PATH=$HOME/local/bin:$PATH
+D=$GENOTYPE_DATA_DIR/1KGP
+T=$(mktemp -d)
+
+echo "########## 1. Trimmed panel sample composition (chr22) ##########"
+if [ -f $D/ref/1KGP_chr22_ALL_ref_trimmed.vcf.gz ]; then
+  bcftools query -l $D/ref/1KGP_chr22_ALL_ref_trimmed.vcf.gz | sort > $T/trim.txt
+  echo "trimmed panel samples: $(wc -l < $T/trim.txt)"
+  for s in train val test; do
+    echo "trim ∩ $s = $(comm -12 $T/trim.txt logs/rev2_${s}_samples_chr22.txt | wc -l)"
+  done
+  echo "variants: $(bcftools index -n $D/ref/1KGP_chr22_ALL_ref_trimmed.vcf.gz 2>/dev/null || echo NA)"
+else
+  echo "NO trimmed panel for chr22"
+fi
+
+echo
+echo "########## 2. Trimmed panel per chromosome ##########"
+for c in $(seq 1 22); do
+  if [ -f $D/ref/1KGP_chr${c}_ALL_ref_trimmed.vcf.gz ]; then st=YES; else st=no; fi
+  echo "chr$c trimmed: $st"
+done
+
+echo
+echo "########## 3. Masked VCF (Beagle input) coverage ##########"
+for rs in 0 42 1024; do
+  for p in 5% 15% 25%; do
+    nv=$(ls $D/masked/$rs/$p/1KGP_chr*_ALL_missing${p}_masked.vcf.gz 2>/dev/null | wc -l)
+    nc=$(ls $D/masked/$rs/$p/1KGP_chr*_ALL_missing${p}_masked.csv.gz 2>/dev/null | wc -l)
+    echo "rand$rs $p: vcf=$nv csv=$nc"
+  done
+done
+
+echo
+echo "########## 4. Masked seg1024 HDF5 (BiUNet test input) per chr ##########"
+ls res/1KGP_chr*_ALL_seg1024_overlap128_missing*_masked.hdf5 2>/dev/null | sed 's/.*1KGP_chr//;s/_ALL.*//' | sort -n | uniq -c
+
+rm -rf $T
+echo "DONE"

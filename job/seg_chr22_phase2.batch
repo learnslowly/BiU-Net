@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_chr22_phase2_%j.log
+#SBATCH --time=4:00:00
+#SBATCH --job-name=seg_p2
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+
+source configs/credentials.sh
+CONF=configs/seg_chr22_ALL_seg128_overlap16_phase2.yaml
+
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+start=$(date +%s)
+echo "Job $SLURM_JOB_ID started at $(date)"
+srun python -u segmenting.py --configFile $CONF --createFilteredSNPs False
+end=$(date +%s)
+echo "chr22 phase2 segmentation done in $(( (end - start) / 60 ))m $(( (end - start) % 60 ))s"

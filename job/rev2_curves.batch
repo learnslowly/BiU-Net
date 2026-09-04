@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_curves
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+"$PYBIN" -u scripts/extract_training_curve.py \
+  logs/rev2_train_scda_fl_g22_986430.log \
+  logs/rev2_train_g22_987947.log \
+  logs/rev2_train_sgdp_ft_aln_987790.log \
+  logs/rev2_train_sgdp_ft_noref_987311.log \
+  logs/rev2_train_scda_ft_sgdp_988175.log
+exit $?

@@ -1,0 +1,13 @@
+runId: seg_hla_chr6
+dataset: HLA
+chromosome: 6
+chromosomes: [6]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+missing: [0.05, 0.15, 0.25]
+testRandStates: [42]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

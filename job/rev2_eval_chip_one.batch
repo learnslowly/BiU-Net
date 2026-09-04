@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_chip_eval1
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+#SBATCH --time=08:00:00
+
+# A handful of chromosomes on one node, run one after another.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+TAG=${1:?usage: sbatch job/rev2_eval_chip_one.batch TAG DATASET CHR [CHR...]}
+DS=${2:?usage: sbatch job/rev2_eval_chip_one.batch TAG DATASET CHR [CHR...]}
+shift 2
+[ $# -ge 1 ] || { echo "no chromosome given"; exit 2; }
+
+FAIL=0
+slot=0
+for C in "$@"; do
+  echo "=== $DS chr$C tag=$TAG ==="
+  srun --nodes=1 --ntasks=2 --cpus-per-task=12 --gres=gpu:2 --gpu-bind=closest \
+       --export=ALL,EVAL_DS="$DS",EVAL_C="$C",EVAL_TAG="$TAG",EVAL_PORT=$((18000 + slot)) \
+       bash scripts/eval_one_chr_chip.sh || { echo "FAILED $DS chr$C"; FAIL=1; }
+  slot=$((slot + 1))
+done
+echo "finished $(date) (fail=$FAIL)"
+exit $FAIL

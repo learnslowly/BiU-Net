@@ -1,0 +1,68 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_sgdp_chipft_long
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=gpu2
+#SBATCH --nodes=2
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:2
+#SBATCH --time=12:00:00
+
+# Continuation of the chromosome 19 and 22 specialisation to 150 epochs.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+SEG=seg4096_overlap512
+SRC=checkpoints/checkpoint_sgdp_chipgw4096_SGDP_chr22_ALL_${SEG}_epoch_best.pth
+[ -s "$SRC" ] || { echo "ERROR: genome-wide checkpoint missing: $SRC"; exit 1; }
+
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+export NCCL_SOCKET_IFNAME=^lo
+export NCCL_DEBUG=WARN
+
+# Which chromosomes to run; both by default.
+CHRS=("$@")
+[ ${#CHRS[@]} -eq 0 ] && CHRS=(19 22)
+echo "chromosomes: ${CHRS[*]}"
+
+FAIL=0
+for C in "${CHRS[@]}"; do
+  DST=checkpoints/checkpoint_sgdp_chipgwft_c${C}_SGDP_chr${C}_ALL_${SEG}_epoch_0.pth
+  if ls checkpoints/checkpoint_sgdp_chipgwft_c${C}_SGDP_chr${C}_ALL_${SEG}_epoch_*.pth >/dev/null 2>&1; then
+    echo "chr$C already has checkpoints, leaving them alone"
+  else
+    "$PYBIN" - "$SRC" "$DST" <<'EOF'
+import sys, torch
+src, dst = sys.argv[1], sys.argv[2]
+ck = torch.load(src, map_location='cpu', weights_only=False)
+ck['epoch'] = 0
+ck.pop('optimizer', None)
+ck.pop('scheduler', None)
+torch.save(ck, dst)
+EOF
+    [ -s "$DST" ] || { echo "prebake failed for chr$C"; FAIL=1; continue; }
+    echo "prebaked chr$C"
+  fi
+
+  # A cache per step, not per job. Two chromosomes sharing one inductor cache
+  # is how chromosome 22 died here: the first step left a half-written autotune
+  # entry behind and the second read it as "JSONDecodeError: Extra data".
+  export TRITON_CACHE_DIR=/tmp/$USER/triton_${SLURM_JOB_ID}_${C}
+  export TORCHINDUCTOR_CACHE_DIR=/tmp/$USER/inductor_${SLURM_JOB_ID}_${C}
+  mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
+
+  export MASTER_ADDR=$(scontrol show hostname "$SLURM_NODELIST" | head -n 1)
+  export MASTER_PORT=$((12700 + C))
+  echo "=== chr$C fine-tuning ==="
+  srun --export=ALL --gpu-bind=closest "$PYBIN" -u train.py \
+      --configFile "configs/train_SGDP_chipgwft_${C}_long.yaml"
+  RC=$?
+  echo "chr$C rc=$RC"
+  [ $RC -ne 0 ] && FAIL=1
+done
+
+echo "fine-tuning finished $(date) (fail=$FAIL)"
+exit $FAIL

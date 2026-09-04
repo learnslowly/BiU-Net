@@ -1,0 +1,3 @@
+Difference in phased four-class $R^2$ between BiU-Net and Beagle on SGDP, by chromosome and minor-allele-frequency bin. Panels (a), (b) and (c) show 5%, 15%, 25% of genotypes masked. Red marks positions where BiU-Net scores higher, blue where Beagle does; the colour scale is symmetric about zero and shared across panels. Values are averaged over masking seeds [0, 42, 1024].
+
+*Source: benchmark cells in analysis/ for dataset SGDP. Code: scripts/build_rev2_figures.py*

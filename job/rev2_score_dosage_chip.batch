@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_dosage
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:1
+#SBATCH --time=04:00:00
+
+# Score the model's expected dosage against Beagle's DS on the array test set.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+CFG=${1:?usage: sbatch job/rev2_score_dosage_chip.batch CONFIG OUT}
+OUT=${2:?usage: sbatch job/rev2_score_dosage_chip.batch CONFIG OUT}
+BEAGLE=${3:-$REMOTE_ROOT/beagle/impute/2000/90%/1KGP_chr22_ALL_missing90%_imputed.vcf.gz}
+# The model dosages are cached beside the table, so re-scoring on a different marker set
+# costs no inference.
+CACHE=${4:-${OUT%.csv}_dosage.npz}
+
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=4
+export MPLBACKEND=Agg
+
+"$PYBIN" -u scripts/score_dosage_chip.py --configFile "$CFG" \
+    --beagleVcf "$BEAGLE" --out "$OUT" --dosageCache "$CACHE"
+RC=$?
+echo "dosage scoring rc=$RC"
+exit $RC

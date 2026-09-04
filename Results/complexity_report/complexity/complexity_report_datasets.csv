@@ -1,0 +1,3 @@
+config,split,num_files,total_segments,unique_samples,unique_snps,segment_lengths
+complexity_reference.yaml,train,2,1377920,,,[128]
+complexity_reference.yaml,val,1,538250,,,[128]

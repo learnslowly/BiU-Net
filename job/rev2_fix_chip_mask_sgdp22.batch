@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_chipmask_sgdp22
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+#SBATCH --time=08:00:00
+
+# Rebuild the SGDP chromosome 22 array test set with the mask decided on the genomic
+# position rather than on a row number taken from the training split.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+export PATH=$HOME/local/bin:$PATH
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+STASH=res/superseded_rowindex_mask
+mkdir -p "$STASH"
+for f in res/SGDP_chr22_ALL_seg*_missing90%_rand2000_masked.hdf5 \
+         res/SGDP_chr22_ALL_seg*_missing90%_rand2000_masked.hdf5.compact.npz; do
+  [ -e "$f" ] && mv "$f" "$STASH"/ && echo "stashed $f"
+done
+[ -e Results/rev2_chip_dosage_SGDP_chr22_chipfixed4096_dosage.npz ] && \
+  mv Results/rev2_chip_dosage_SGDP_chr22_chipfixed4096_dosage.npz "$STASH"/
+
+echo "=== rebuilding the mask ==="
+"$PYBIN" -u scripts/masking_chip_gw.py --dataset SGDP --chromosome 22 \
+    --population ALL --observed-fraction 0.10 --maf-min 0.05 --rand-state 2000
+RC1=$?
+[ $RC1 -ne 0 ] && { echo "masking failed"; exit $RC1; }
+
+echo "=== segmenting the wide window ==="
+"$PYBIN" -u segmenting.py --configFile configs/test_SGDP_chipfixed4096_22.yaml \
+    --createFilteredSNPs False
+RC2=$?
+echo "=== segmenting the original window ==="
+"$PYBIN" -u segmenting.py --configFile configs/test_SGDP_chipft_22.yaml \
+    --createFilteredSNPs False
+RC3=$?
+echo "rc: mask=$RC1 seg4096=$RC2 seg1024=$RC3"
+[ $RC2 -eq 0 ] && [ $RC3 -eq 0 ]

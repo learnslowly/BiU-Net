@@ -1,0 +1,61 @@
+# Chromosome 19 specialisation of the genome-wide array model: 30 epochs from the
+# genome-wide checkpoint at a tenth the learning rate, now under the array's own column
+# pattern rather than a drawn one, since a single chromosome makes the site lookup
+# unambiguous.
+runId: sgdp_chipgwft_c19
+dataset: SGDP
+chromosome: 19
+chromosomes: [19]
+segLen: 4096
+overlap: 512
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+useGroupNorm: False
+batchSize: 64
+learningRate: 0.0001
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+missingRatio: 0.9
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+trainOnVal: False
+preloadData: True
+# Exp-2 full-panel parity: merge the 1KGP TEST samples (263) into finetune training, # the model then has seen all 2548 panel individuals, matching the full 1KGP reference
+# Beagle uses for SGDP.
+extraTrainFiles: ./res/SGDP_chr19_ALLPANEL_train_chunk*_seg4096_overlap512.hdf5
+mixedPrecisionTraining: True
+useTorchCompile: True
+torchCompileMode: reduce-overhead
+saveCheckpointFreq: 5
+valFreq: 5
+valSubsetFraction: 0.5
+useWandB: False
+finetuning: False
+totalEpochs: 30
+warmupEpochs: 0
+cooldownEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+earlyStoppingPatience: 10
+earlyStoppingMinDelta: 0.0001
+curriculumStartRatio: -1.0    # no curriculum: it already ran in the genome-wide phase
+curriculumWarmupEpochs: 0
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+batchSizeTest: 8
+epoch: 0
+maskMode: chip
+chipSitesFile: "data/SGDP/masked/2000/90%/array_sites_chr19_ALL.tsv"

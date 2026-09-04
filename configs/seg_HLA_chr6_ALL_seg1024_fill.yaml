@@ -1,0 +1,15 @@
+# Fill-in: HLA chr6 seg1024 masked HDF5s at all 3 rand states (existing ones may cover
+# rand42 only; segmenting.py skips whatever already exists).
+runId: seg_hla_fill
+dataset: HLA
+chromosome: 6
+chromosomes: [6]
+segLen: 1024
+overlap: 128
+population: ALL
+model: unet
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 256
+batchSizeTest: 8
+seed: 42

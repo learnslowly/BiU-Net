@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --output=logs/seg_chr%a_resub_%j.log
+#SBATCH --time=2-00:00:00
+#SBATCH --job-name=seg_resub
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --array=1-5
+
+# Resubmit chr 1-5 with --cpus-per-task=8 (was 20 → OOM-killed on 256GB nodes because 20
+# workers × big chr1-5 CSVs blew past memory).
+
+source configs/credentials.sh
+CHR=$SLURM_ARRAY_TASK_ID
+CONF=configs/1KGP_chr${CHR}_ALL_seg1024_overlap128.yaml
+
+if [ ! -f "$CONF" ]; then
+    echo "ERROR: missing config $CONF"
+    exit 1
+fi
+
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+start=$(date +%s)
+echo "Job $SLURM_JOB_ID array=$SLURM_ARRAY_TASK_ID chr=$CHR started at $(date)"
+srun python -u segmenting.py --configFile $CONF --createFilteredSNPs False
+end=$(date +%s)
+echo "chr=$CHR done in $(( (end - start) / 60 ))m $(( (end - start) % 60 ))s"

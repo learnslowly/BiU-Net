@@ -1,0 +1,46 @@
+# Phase 2 eval config for gpu4 ep160 (published BiUNet) at chr22 ALL, missing rates
+# 50/70/80/90/95, rand=42.
+
+runId: gpu4
+dataset: 1KGP
+chromosome: 22
+segLen: 128
+overlap: 16
+population: ALL
+
+model: unet
+bioAware: True
+depth: 6
+nchannels: 32
+kernelSize: 7
+stride: 1
+dropoutRate: 0.0
+
+batchSize: 128
+batchSizeTest: 8
+learningRate: 0.0008
+loss: hybridWeightedFocalLoss
+focalAlpha: 0.25
+focalGamma: 2.0
+dosageLossLambda: 0.5
+sampling: normal
+
+useWandB: False
+finetuning: False
+totalEpochs: 800
+warmupEpochs: 1
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.5
+dynamicRatio: False
+bertStrategy: False
+
+benchmarkAll: False
+epoch: 160
+bins: [0.0, 0.005, 0.01, 0.05, 0.40, 0.5]
+missing: [0.5, 0.7, 0.8, 0.9, 0.95]
+testRandStates: [42]

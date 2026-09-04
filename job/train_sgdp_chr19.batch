@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --output=./logs/train_sgdp_chr19_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=2-23:59:00
+#SBATCH --job-name=sgdp_chr19
+#SBATCH --partition=gpu4
+#SBATCH --nodes=4
+#SBATCH --ntasks=16
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:4
+
+# --- Conda env ---
+source configs/credentials.sh
+# --- DDP / NCCL setup (GenoBERT pattern; required on this cluster's gpu nodes) ---
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12340
+export NCCL_SOCKET_IFNAME=^lo
+# NB: CUDA_VISIBLE_DEVICES is pinned per local rank INSIDE train.py, before the torch
+# import (see train.py top).
+
+# --- HDF5 concurrent-read fix (mandatory for multi-rank reads) ---
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+CONF=configs/SGDP_chr19_ALL_seg128_overlap16.yaml
+
+# Call u19's interpreter by ABSOLUTE PATH -- `conda activate` does not reliably take
+# effect inside batch jobs on this cluster (see 02_vcf2csv.batch).
+
+echo "Start: $(date)   Nodes: $SLURM_JOB_NODELIST   World: $SLURM_NTASKS"
+srun --gpu-bind=closest "${PYBIN}" -u train.py --configFile ${CONF}
+echo "End:   $(date)"

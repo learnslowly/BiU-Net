@@ -1,0 +1,3 @@
+Per-chromosome accuracy of the delivered model against the two baselines. Rows are datasets, columns are the fraction of genotypes masked, and each row within a panel is one autosome. Points are the phased four-class R2 pooled over all positions of that chromosome and averaged over three masking seeds. The connector joins Beagle to BiU-Net and is coloured by which of the two is higher. BiU-Net here is the genome-wide merged-data model after 30 epochs of fine-tuning on the chromosome being scored; the genome-wide checkpoint it starts from is a stage in that procedure and is reported in the fine-tuning summary table rather than shown as a competitor.
+
+*Source: benchmark cells in analysis/. Code: scripts/plot_accuracy_by_chromosome.py*

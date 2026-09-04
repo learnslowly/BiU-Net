@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_seg_wide_sgdp
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+#SBATCH --time=08:00:00
+
+# SGDP chromosome 19 at 4,096 markers per window, overlapping by 512: the aligned 1KGP
+# panel that stays in training, then the cohort's own training, validation and array
+# test sets.
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+start=$(date +%s)
+echo "=== aligned panel ==="
+"$PYBIN" -u segmenting.py --configFile configs/seg_SGDP_chr19_ALLPANEL_seg4096.yaml \
+    --createFilteredSNPs False
+RC1=$?
+echo "panel rc=$RC1, $(( ($(date +%s)-start)/60 ))m"
+
+echo "=== cohort splits and array test set ==="
+"$PYBIN" -u segmenting.py --configFile configs/test_SGDP_chipfixed4096_19.yaml \
+    --createFilteredSNPs False
+RC2=$?
+echo "cohort rc=$RC2, total $(( ($(date +%s)-start)/60 ))m"
+ls res/ | grep "SGDP_chr19.*seg4096"
+[ $RC1 -eq 0 ] && [ $RC2 -eq 0 ]

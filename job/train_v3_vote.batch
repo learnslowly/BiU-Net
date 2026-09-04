@@ -1,0 +1,26 @@
+#!/bin/bash
+#SBATCH --output=logs/train_v3_vote_%j.log
+#SBATCH --time=20:00:00
+#SBATCH --job-name=v3_vote
+#SBATCH --partition=gpu2
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=24
+#SBATCH --gpus-per-task=1
+#SBATCH --dependency=afterok:783276
+
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12458
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+echo "Job $SLURM_JOB_ID (v3_vote) started at $(date)"
+srun --export=ALL --gpu-bind=closest python -u train.py --configFile configs/train_1KGP_chr22_ALL_seg1024_ov512_v3_vote.yaml
+echo "Job $SLURM_JOB_ID (v3_vote) finished at $(date)"

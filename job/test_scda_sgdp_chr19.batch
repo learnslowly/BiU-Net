@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --output=./logs/test_scda_sgdp_chr19_%j.log
+#SBATCH --open-mode=append
+#SBATCH --time=08:00:00
+#SBATCH --job-name=test_scda19
+#SBATCH --partition=gpu2
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --gres=gpu:1
+
+source configs/credentials.sh
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12343
+export NCCL_SOCKET_IFNAME=^lo
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+# Absolute env interpreter -- conda activate is unreliable in batch jobs here.
+CONF=configs/test_scda_SGDP_chr19_ALL.yaml
+
+# test.py loops all testRandStates x missing levels (3 x 3 = 9) internally and writes
+# impute/{rand}/{level}/scda_chr19_epoch<E>_..._seg-1_overlap0_..._imputed.csv.gz It now
+# builds the seg-1 model at the real segment length read from the data.
+echo "Start: $(date)   World: $SLURM_NTASKS"
+srun --gpu-bind=closest "${PYBIN}" -u test.py --configFile ${CONF}
+echo "End:   $(date)"

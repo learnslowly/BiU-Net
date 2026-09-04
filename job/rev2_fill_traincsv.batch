@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_traincsv
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=08:00:00
+#SBATCH --array=0-18
+# Fill-in: 1KGP chr6/chr19 full train CSVs (benchmark.py reads them for MAF binning; the
+# split VCFs exist but these CSVs were never generated/were cleaned).
+set -euo pipefail
+source configs/credentials.sh
+CHRS=(1 2 3 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21)
+C=${CHRS[$SLURM_ARRAY_TASK_ID]}
+cd $GENOTYPE_DATA_DIR/1KGP
+export OMP_NUM_THREADS=1
+"$PYBIN" -u vcf2csv.py "$C" ALL train
+echo "DONE chr$C"

@@ -1,0 +1,44 @@
+# Exp-1 SCDA eval, chr21: genome-wide scda_fl_g22 (seg-1, epoch 286 = last numeric
+# checkpoint at early stop by saturation).
+runId: scda_fl_g22
+dataset: 1KGP
+chromosome: 21
+chromosomes: [21]
+segLen: -1
+overlap: 0
+population: ALL
+model: scda
+bioAware: False
+batchSize: 32
+dropoutRate: 0.00
+learningRate: 0.00072
+loss: focalLoss
+sampling: normal
+upsamplingRatio: 0.8
+missingRatio: 0.15
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+trainOnVal: True
+useWandB: False
+finetuning: False
+totalEpochs: 1000
+warmupEpochs: 5
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 1024
+earlyStoppingPatience: 999
+earlyStoppingMinDelta: 0.0
+saveCheckpointFreq: 25
+valFreq: 50
+valSubsetFraction: 1.0
+batchSizeTest: 8
+epoch: 286
+maxBatchPositions: 12000000
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+perVariantR2: False

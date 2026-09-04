@@ -1,0 +1,145 @@
+arm,reference_handling,denominator,missing,MAF_bin,R2,Num_SNPs,R2_manuscript
+no reference,SGDP training split only,Beagle intersection,5%,0.1%~0.5%,0.6596182807417366,6837.0,0.748
+no reference,SGDP training split only,Beagle intersection,5%,0.5%~1%,0.7262078296077631,7548.0,0.7947
+no reference,SGDP training split only,Beagle intersection,5%,1%~10%,0.9096031161743987,68923.0,0.9343
+no reference,SGDP training split only,Beagle intersection,5%,10%~20%,0.9516691430769622,40538.0,0.9685
+no reference,SGDP training split only,Beagle intersection,5%,20%~30%,0.9466920434884663,26936.0,0.967
+no reference,SGDP training split only,Beagle intersection,5%,30%~40%,0.9459472116123065,23633.0,0.969
+no reference,SGDP training split only,Beagle intersection,5%,40%~50%,0.9474195332620868,22028.0,0.968
+no reference,SGDP training split only,Beagle intersection,5%,Overall,0.9502193271648715,196443.0,0.968
+no reference,SGDP training split only,Beagle intersection,15%,0.1%~0.5%,0.34620064707697745,6837.0,0.5159
+no reference,SGDP training split only,Beagle intersection,15%,0.5%~1%,0.4093653790815073,7548.0,0.5783
+no reference,SGDP training split only,Beagle intersection,15%,1%~10%,0.7022428287190019,68923.0,0.8256
+no reference,SGDP training split only,Beagle intersection,15%,10%~20%,0.8292227694453022,40538.0,0.9127
+no reference,SGDP training split only,Beagle intersection,15%,20%~30%,0.8297693973545006,26936.0,0.9128
+no reference,SGDP training split only,Beagle intersection,15%,30%~40%,0.823307288613219,23633.0,0.9158
+no reference,SGDP training split only,Beagle intersection,15%,40%~50%,0.8213936590003987,22028.0,0.9105
+no reference,SGDP training split only,Beagle intersection,15%,Overall,0.8281513297841959,196443.0,0.912
+no reference,SGDP training split only,Beagle intersection,25%,0.1%~0.5%,0.23515650700732307,6837.0,0.3988
+no reference,SGDP training split only,Beagle intersection,25%,0.5%~1%,0.288004611729384,7548.0,0.4588
+no reference,SGDP training split only,Beagle intersection,25%,1%~10%,0.5677448413278615,68923.0,0.7455
+no reference,SGDP training split only,Beagle intersection,25%,10%~20%,0.7383788483903766,40538.0,0.8692
+no reference,SGDP training split only,Beagle intersection,25%,20%~30%,0.7387393075837387,26936.0,0.8694
+no reference,SGDP training split only,Beagle intersection,25%,30%~40%,0.7302650369003012,23633.0,0.8737
+no reference,SGDP training split only,Beagle intersection,25%,40%~50%,0.7304960113214855,22028.0,0.8657
+no reference,SGDP training split only,Beagle intersection,25%,Overall,0.7348209236020317,196443.0,0.8676
+no reference,SGDP training split only,full target axis,5%,0.1%~0.5%,0.6621885321451075,7284.0,0.748
+no reference,SGDP training split only,full target axis,5%,0.5%~1%,0.7379802495341403,7985.0,0.7947
+no reference,SGDP training split only,full target axis,5%,1%~10%,0.9095784180749994,72092.0,0.9343
+no reference,SGDP training split only,full target axis,5%,10%~20%,0.9516986078992268,42001.0,0.9685
+no reference,SGDP training split only,full target axis,5%,20%~30%,0.9467975700764225,28117.0,0.967
+no reference,SGDP training split only,full target axis,5%,30%~40%,0.9461258673368366,24765.0,0.969
+no reference,SGDP training split only,full target axis,5%,40%~50%,0.9477341580236517,23241.0,0.968
+no reference,SGDP training split only,full target axis,5%,Overall,0.950361392714496,205486.0,0.968
+no reference,SGDP training split only,full target axis,15%,0.1%~0.5%,0.349082959176595,7284.0,0.5159
+no reference,SGDP training split only,full target axis,15%,0.5%~1%,0.42419052407738445,7985.0,0.5783
+no reference,SGDP training split only,full target axis,15%,1%~10%,0.7028254476222303,72092.0,0.8256
+no reference,SGDP training split only,full target axis,15%,10%~20%,0.8292916663512314,42001.0,0.9127
+no reference,SGDP training split only,full target axis,15%,20%~30%,0.8300942544582627,28117.0,0.9128
+no reference,SGDP training split only,full target axis,15%,30%~40%,0.8240331241743671,24765.0,0.9158
+no reference,SGDP training split only,full target axis,15%,40%~50%,0.8223397187514029,23241.0,0.9105
+no reference,SGDP training split only,full target axis,15%,Overall,0.8287710313204996,205486.0,0.912
+no reference,SGDP training split only,full target axis,25%,0.1%~0.5%,0.23679063280628262,7284.0,0.3988
+no reference,SGDP training split only,full target axis,25%,0.5%~1%,0.3015161460793989,7985.0,0.4588
+no reference,SGDP training split only,full target axis,25%,1%~10%,0.5683981526671668,72092.0,0.7455
+no reference,SGDP training split only,full target axis,25%,10%~20%,0.7382771169101933,42001.0,0.8692
+no reference,SGDP training split only,full target axis,25%,20%~30%,0.7392905925817482,28117.0,0.8694
+no reference,SGDP training split only,full target axis,25%,30%~40%,0.7314771048762685,24765.0,0.8737
+no reference,SGDP training split only,full target axis,25%,40%~50%,0.7316565295458579,23241.0,0.8657
+no reference,SGDP training split only,full target axis,25%,Overall,0.7357040003140819,205486.0,0.8676
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,0.1%~0.5%,0.6335312728772043,6837.0,0.748
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,0.5%~1%,0.6983902628349279,7548.0,0.7947
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,1%~10%,0.8943230065506015,68923.0,0.9343
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,10%~20%,0.9454667746512868,40538.0,0.9685
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,20%~30%,0.9419700645132254,26936.0,0.967
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,30%~40%,0.9424534158137728,23633.0,0.969
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,40%~50%,0.9449633397918245,22028.0,0.968
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,5%,Overall,0.9446687378730507,196443.0,0.968
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,0.1%~0.5%,0.3149762547191299,6837.0,0.5159
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,0.5%~1%,0.3755453767316996,7548.0,0.5783
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,1%~10%,0.6655255908809677,68923.0,0.8256
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,10%~20%,0.8099086210996962,40538.0,0.9127
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,20%~30%,0.8149851507077518,26936.0,0.9128
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,30%~40%,0.8138670904092001,23633.0,0.9158
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,40%~50%,0.8143541839932014,22028.0,0.9105
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,15%,Overall,0.811618958795887,196443.0,0.912
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,0.1%~0.5%,0.21243659639152032,6837.0,0.3988
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,0.5%~1%,0.25842601579996227,7548.0,0.4588
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,1%~10%,0.5233793466056341,68923.0,0.7455
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,10%~20%,0.7110889383336282,40538.0,0.8692
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,20%~30%,0.7177715893349997,26936.0,0.8694
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,30%~40%,0.7166000428490511,23633.0,0.8737
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,40%~50%,0.7202224814366934,22028.0,0.8657
+unaligned reference,1KGP samples merged on the 1KGP variant axis,Beagle intersection,25%,Overall,0.7118113544868873,196443.0,0.8676
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,0.1%~0.5%,0.6376844920108323,7284.0,0.748
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,0.5%~1%,0.7111004054543248,7985.0,0.7947
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,1%~10%,0.8943023054755393,72092.0,0.9343
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,10%~20%,0.9454751207335749,42001.0,0.9685
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,20%~30%,0.9420500567396228,28117.0,0.967
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,30%~40%,0.942588536567488,24765.0,0.969
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,40%~50%,0.9452855439695377,23241.0,0.968
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,5%,Overall,0.9448212071415402,205486.0,0.968
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,0.1%~0.5%,0.31932154865244294,7284.0,0.5159
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,0.5%~1%,0.38858139908136974,7985.0,0.5783
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,1%~10%,0.6659546100889324,72092.0,0.8256
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,10%~20%,0.8098604543367324,42001.0,0.9127
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,20%~30%,0.8152659804585731,28117.0,0.9128
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,30%~40%,0.8145838346725297,24765.0,0.9158
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,40%~50%,0.8153417011435833,23241.0,0.9105
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,15%,Overall,0.8122564563739143,205486.0,0.912
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,0.1%~0.5%,0.2153247658565586,7284.0,0.3988
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,0.5%~1%,0.2698662129548886,7985.0,0.4588
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,1%~10%,0.5237108780522924,72092.0,0.7455
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,10%~20%,0.7107844423425472,42001.0,0.8692
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,20%~30%,0.7181442068260336,28117.0,0.8694
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,30%~40%,0.7176552594185003,24765.0,0.8737
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,40%~50%,0.7215479141396814,23241.0,0.8657
+unaligned reference,1KGP samples merged on the 1KGP variant axis,full target axis,25%,Overall,0.712661711394088,205486.0,0.8676
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,0.1%~0.5%,0.7312300682275844,6837.0,0.748
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,0.5%~1%,0.7942740347782317,7548.0,0.7947
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,1%~10%,0.9355936374017174,68923.0,0.9343
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,10%~20%,0.9659758528371417,40538.0,0.9685
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,20%~30%,0.9612454276045467,26936.0,0.967
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,30%~40%,0.9583592883441128,23633.0,0.969
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,40%~50%,0.9576662761964968,22028.0,0.968
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,5%,Overall,0.9635425435642041,196443.0,0.968
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,0.1%~0.5%,0.42456640973348225,6837.0,0.5159
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,0.5%~1%,0.5103881335939359,7548.0,0.5783
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,1%~10%,0.7719589682099066,68923.0,0.8256
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,10%~20%,0.8776993724407219,40538.0,0.9127
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,20%~30%,0.8748413233786749,26936.0,0.9128
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,30%~40%,0.8570851196909843,23633.0,0.9158
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,40%~50%,0.8529896775527727,22028.0,0.9105
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,15%,Overall,0.8706701029212506,196443.0,0.912
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,0.1%~0.5%,0.30708401648317024,6837.0,0.3988
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,0.5%~1%,0.38021064298028123,7548.0,0.4588
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,1%~10%,0.6614570749806239,68923.0,0.7455
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,10%~20%,0.8104368351593813,40538.0,0.8692
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,20%~30%,0.8066390660084511,26936.0,0.8694
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,30%~40%,0.7803247237490775,23633.0,0.8737
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,40%~50%,0.7751041749703181,22028.0,0.8657
+aligned reference,1KGP samples projected onto the SGDP variant axis,Beagle intersection,25%,Overall,0.7990132491196484,196443.0,0.8676
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,0.1%~0.5%,0.7296900703039841,7284.0,0.748
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,0.5%~1%,0.8017590380891501,7985.0,0.7947
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,1%~10%,0.9346920511397575,72092.0,0.9343
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,10%~20%,0.9656757141922717,42001.0,0.9685
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,20%~30%,0.9609333518605041,28117.0,0.967
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,30%~40%,0.9581409583543392,24765.0,0.969
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,40%~50%,0.9575025765018327,23241.0,0.968
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,5%,Overall,0.9632391646759761,205486.0,0.968
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,0.1%~0.5%,0.42232627034246845,7284.0,0.5159
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,0.5%~1%,0.5215262557932111,7985.0,0.5783
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,1%~10%,0.7703491332947009,72092.0,0.8256
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,10%~20%,0.8766893812430409,42001.0,0.9127
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,20%~30%,0.8737503509324744,28117.0,0.9128
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,30%~40%,0.8565285441132883,24765.0,0.9158
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,40%~50%,0.8524637047948441,23241.0,0.9105
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,15%,Overall,0.8698279427637764,205486.0,0.912
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,0.1%~0.5%,0.30437294731644676,7284.0,0.3988
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,0.5%~1%,0.39213051479660216,7985.0,0.4588
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,1%~10%,0.6591199184945292,72092.0,0.7455
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,10%~20%,0.8088978011880369,42001.0,0.8692
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,20%~30%,0.8049921985509552,28117.0,0.8694
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,30%~40%,0.7795561773806902,24765.0,0.8737
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,40%~50%,0.7743923724806101,23241.0,0.8657
+aligned reference,1KGP samples projected onto the SGDP variant axis,full target axis,25%,Overall,0.7977226954614262,205486.0,0.8676

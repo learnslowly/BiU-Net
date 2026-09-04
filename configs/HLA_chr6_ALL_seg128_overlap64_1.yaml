@@ -1,0 +1,41 @@
+runId: LONI_Mar10_2222
+
+dataset: HLA
+chromosome: 6
+population: ALL
+segLen: 128
+overlap: 64
+unique: False
+
+model: unet
+batchSize: 64
+dropoutRate: 0.01
+learningRate: 0.0018
+scheduler: cosineAnn
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+sampling: normal
+upsamplingRatio: 0.8
+finetuning: False
+targetBin: 0.001-0.005
+totalEpochs: 3000
+warmupEpochs: 10
+cooldownEpochs: 0
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.02
+seed: 42
+missingRatio: 0.5
+dynamicRatio: False
+
+# modelDir: archive/exp1/HLA_chr6_ALL_seg128_overlap64/checkpoints analysisDir:
+# archive/exp1/HLA_chr6_ALL_seg128_overlap64/analysis
+benchmarkAll: True
+batchSizeTest: 1024
+epoch: 0
+
+
+
+
+

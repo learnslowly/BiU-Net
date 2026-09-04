@@ -1,0 +1,602 @@
+#!/bin/bash
+#SBATCH --partition=bigmem
+#SBATCH --time=20:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=64
+#SBATCH --job-name=los_qc
+#SBATCH --output=qc/logs/chr%a.out
+#SBATCH --array=1-5,7-21
+
+set -euo pipefail
+
+# Get chromosome number from environment or array task ID
+export CHR=${CHR:-$SLURM_ARRAY_TASK_ID}
+
+# Load local Java (1.8 not JDK23) and Beagle
+export PATH=$HOME/local/java/bin:$PATH
+export JAVA_HOME=$HOME/local/java
+export BEAGLE_JAR=$HOME/local/beagle/beagle.22Jul22.46e.jar
+
+# ============================================================================= HLA
+# REGION CONFIGURATION (applies only to chromosome 6)
+# ============================================================================= Options:
+# "none", "only", "both" none - Process full chromosome, no HLA extraction only -
+# Extract only HLA region (chromosome 6 only) both - Process full chromosome AND extract
+# HLA region (chromosome 6 only)
+export HLA_MODE="${HLA_MODE:-none}"
+
+# HLA/MHC region coordinates (GRCh38)
+export HLA_START=28510020
+export HLA_END=33480577
+# =============================================================================
+
+# Validate HLA_MODE for non-chr6
+if [ "${CHR}" -ne 6 ] && [ "${HLA_MODE}" = "only" ]; then
+    echo "ERROR: HLA_MODE='only' is only valid for chromosome 6"
+    echo "Current chromosome: ${CHR}"
+    exit 1
+fi
+
+# Define input files and directories
+export INPUT_PLINK="orig/WGStoB37_LOS19_MM23_MTS23_7679Samples_chr${CHR}"
+export METADATA_FILE="orig/demographics.csv"
+export QC_DIR="qc"
+export SPLIT_DIR="split"
+export SUBSET_DIR="subsets"
+export LOG_DIR="${QC_DIR}/logs"
+export MAP_FILE="../1KGP/orig/GRCh38/genetic_maps/plink.chr${CHR}.GRCh38.map"
+export REF_FILE="../1KGP/ref/1KGP_chr${CHR}_ALL_ref.vcf.gz"
+export DATASET="LOS"
+
+# Create necessary directories
+mkdir -p ${QC_DIR}/temp ${SPLIT_DIR} ${SUBSET_DIR} ${LOG_DIR}
+
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
+
+check_file_complete() {
+    local vcf_file=$1
+
+    # Check if VCF exists and has non-zero size
+    if [ ! -f "${vcf_file}" ] || [ ! -s "${vcf_file}" ]; then
+        return 1  # File missing or empty
+    fi
+
+    # Check if index exists and has non-zero size
+    if [ ! -f "${vcf_file}.tbi" ] || [ ! -s "${vcf_file}.tbi" ]; then
+        return 1  # Index missing or empty
+    fi
+
+    # Verify VCF integrity by checking if bcftools can read it
+    if ! bcftools view -h "${vcf_file}" > /dev/null 2>&1; then
+        return 1  # VCF corrupted
+    fi
+
+    # Check if VCF has at least one variant
+    local variant_count=$(bcftools view -H "${vcf_file}" | head -1 | wc -l)
+    if [ "${variant_count}" -eq 0 ]; then
+        echo "  Warning: ${vcf_file} has no variants"
+        return 1  # Empty VCF
+    fi
+
+    return 0  # File complete
+}
+
+check_population_complete() {
+    local chr=$1
+    local pop=$2
+    local hla_suffix=""
+
+    # Determine if we need to check HLA files
+    if [ "${chr}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+        hla_suffix="_HLA"
+    fi
+
+    # Check all 3 splits for this population
+    local splits=("train" "val" "test")
+    local all_complete=true
+
+    for split in "${splits[@]}"; do
+        local vcf_file="${SPLIT_DIR}/${DATASET}_chr${chr}_${pop}_${split}${hla_suffix}.vcf.gz"
+
+        if ! check_file_complete "${vcf_file}"; then
+            all_complete=false
+            break
+        fi
+    done
+
+    if [ "${all_complete}" = true ]; then
+        return 0  # Complete
+    else
+        return 1  # Incomplete
+    fi
+}
+
+check_chromosome_complete() {
+    local chr=$1
+    local hla_suffix=""
+
+    # Determine if we need to check HLA files
+    if [ "${chr}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+        hla_suffix="_HLA"
+    fi
+
+    # Expected output files: 3 populations × 3 splits = 9 files
+    local populations=("AA" "CA" "ALL")
+    local splits=("train" "val" "test")
+    local all_complete=true
+
+    echo "Checking chromosome ${chr} processing status..."
+
+    for pop in "${populations[@]}"; do
+        if check_population_complete "${chr}" "${pop}"; then
+            echo "  ✓ Population ${pop} [COMPLETE - all splits valid]"
+        else
+            echo "  ✗ Population ${pop} [INCOMPLETE]"
+            # Show detail for incomplete population
+            for split in "${splits[@]}"; do
+                local vcf_file="${SPLIT_DIR}/${DATASET}_chr${chr}_${pop}_${split}${hla_suffix}.vcf.gz"
+                if check_file_complete "${vcf_file}"; then
+                    echo "    ✓ ${split}"
+                else
+                    echo "    ✗ ${split}"
+                fi
+            done
+            all_complete=false
+        fi
+    done
+
+    if [ "${all_complete}" = true ]; then
+        return 0  # Complete
+    else
+        return 1  # Incomplete
+    fi
+}
+
+extract_hla_region() {
+    local input_vcf=$1
+    local output_vcf=$2
+
+    echo "Extracting HLA/MHC region (chr6:${HLA_START}-${HLA_END})..."
+    bcftools view -r 6:${HLA_START}-${HLA_END} \
+        ${input_vcf} \
+        -Oz -o ${output_vcf}
+    tabix -p vcf ${output_vcf}
+
+    local snp_count=$(bcftools query -f '%POS\n' ${output_vcf} | wc -l)
+    echo "HLA region extracted: ${snp_count} SNPs"
+}
+
+# ============================================================================= CHECK
+# FOR COMPLETION (RESUME SUPPORT)
+# =============================================================================
+
+if check_chromosome_complete ${CHR}; then
+    echo ""
+    echo "============================================================"
+    echo "Chromosome ${CHR} already processed completely!"
+    echo "All 3 populations (AA, CA, ALL) × 3 splits (train/val/test) are valid."
+    echo ""
+    echo "Nothing to do. Exiting."
+    echo ""
+    echo "To force reprocessing, manually delete files in:"
+    echo "  ${SPLIT_DIR}/${DATASET}_chr${CHR}_*.vcf.gz*"
+    echo "============================================================"
+    echo ""
+    exit 0
+fi
+
+echo ""
+echo "Chromosome ${CHR} incomplete or not processed. Starting/resuming processing..."
+echo ""
+
+# Record start time
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+echo "Processing chromosome ${CHR}"
+if [ "${CHR}" -eq 6 ]; then
+    echo "HLA Mode: ${HLA_MODE}"
+    if [ "${HLA_MODE}" != "none" ]; then
+        echo "HLA Region: chr6:${HLA_START}-${HLA_END}"
+    fi
+fi
+
+# **STEP 1: INITIAL QC (RUN ONLY ONCE PER CHROMOSOME) ###
+
+# Check if Step 1 has already been completed
+check_step1_complete() {
+    local chr=$1
+
+    # Required files for Step 1 completion
+    local signal_file="${QC_DIR}/temp/Done_chr${chr}.signal"
+    local qc_vcf="${QC_DIR}/temp/qc_chr${chr}.vcf.gz"
+    local pop_info="${QC_DIR}/temp/population_info_chr${chr}.txt"
+
+    # Check completion signal exists
+    if [ ! -f "${signal_file}" ]; then
+        echo "  ✗ Completion signal missing"
+        return 1
+    fi
+
+    # Check QC VCF exists and is valid
+    if ! check_file_complete "${qc_vcf}"; then
+        echo "  ✗ QC VCF missing or corrupted: ${qc_vcf}"
+        return 1
+    fi
+
+    # Check population info file exists and is non-empty
+    if [ ! -f "${pop_info}" ] || [ ! -s "${pop_info}" ]; then
+        echo "  ✗ Population info missing or empty: ${pop_info}"
+        return 1
+    fi
+
+    # Check sample ID lists exist for all populations
+    local populations=("AA" "CA" "ALL")
+    for pop in "${populations[@]}"; do
+        local id_file="${SUBSET_DIR}/${DATASET}_chr${chr}_${pop}_ids.txt"
+        if [ ! -f "${id_file}" ] || [ ! -s "${id_file}" ]; then
+            echo "  ✗ Sample ID list missing or empty: ${id_file}"
+            return 1
+        fi
+    done
+
+    # All checks passed
+    return 0
+}
+
+STEP1_COMPLETE=false
+
+echo "Checking Step 1 (QC/Phasing) completion status..."
+if check_step1_complete "${CHR}"; then
+    echo "  ✓ All Step 1 intermediate files valid"
+    echo ""
+    echo "============================================="
+    echo "Step 1 (QC/Phasing) already completed for chromosome ${CHR}!"
+    echo "Using existing intermediate files:"
+    echo "  - ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz"
+    echo "  - ${QC_DIR}/temp/population_info_chr${CHR}.txt"
+    echo "  - Sample ID lists for AA, CA, ALL"
+    echo "Skipping to Step 2 (population-specific processing)..."
+    echo "============================================="
+    echo ""
+    STEP1_COMPLETE=true
+else
+    echo ""
+    echo "Step 1 incomplete or corrupted. Running/rerunning Step 1..."
+    echo ""
+fi
+
+if [ "${STEP1_COMPLETE}" = false ]; then
+    echo ""
+    echo "Running Step 1: QC and Phasing..."
+    echo ""
+
+# Step 1.1: Convert PLINK to VCF
+echo "Converting PLINK to VCF..."
+plink --bfile ${INPUT_PLINK} \
+      --recode vcf \
+      --snps-only just-acgt \
+      --out ${QC_DIR}/temp/initial_chr${CHR} \
+      --threads 64
+
+# Create a proper header file with contig information
+echo -e "##fileformat=VCFv4.2\n##contig=<ID=${CHR}>" > ${QC_DIR}/temp/header_chr${CHR}.txt
+bcftools view -h ${QC_DIR}/temp/initial_chr${CHR}.vcf | grep -v "^##fileformat" >> ${QC_DIR}/temp/header_chr${CHR}.txt
+
+# Replace the header and compress
+bcftools reheader -h ${QC_DIR}/temp/header_chr${CHR}.txt ${QC_DIR}/temp/initial_chr${CHR}.vcf | \
+    bcftools sort -Oz -o ${QC_DIR}/temp/initial_chr${CHR}_sorted.vcf.gz
+
+tabix -p vcf ${QC_DIR}/temp/initial_chr${CHR}_sorted.vcf.gz
+
+# Step 1.2: Extract HLA region BEFORE phasing if HLA_MODE="only" (saves time/memory)
+if [ "${CHR}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+    echo "HLA_MODE=only: Extracting HLA region before phasing..."
+
+    # Extract HLA from study VCF
+    extract_hla_region \
+        ${QC_DIR}/temp/initial_chr${CHR}_sorted.vcf.gz \
+        ${QC_DIR}/temp/initial_chr${CHR}_sorted_HLA.vcf.gz
+    mv ${QC_DIR}/temp/initial_chr${CHR}_sorted_HLA.vcf.gz ${QC_DIR}/temp/initial_chr${CHR}_sorted.vcf.gz
+    mv ${QC_DIR}/temp/initial_chr${CHR}_sorted_HLA.vcf.gz.tbi ${QC_DIR}/temp/initial_chr${CHR}_sorted.vcf.gz.tbi
+
+    # Extract HLA from reference panel
+    echo "Extracting HLA region from reference panel..."
+    bcftools view -r 6:${HLA_START}-${HLA_END} \
+        ${REF_FILE} \
+        -Oz -o ${QC_DIR}/temp/ref_chr${CHR}_HLA.vcf.gz
+    tabix -p vcf ${QC_DIR}/temp/ref_chr${CHR}_HLA.vcf.gz
+    REF_FILE_USE=${QC_DIR}/temp/ref_chr${CHR}_HLA.vcf.gz
+    echo "Reference HLA SNPs: $(bcftools query -f '%POS\n' ${REF_FILE_USE} | wc -l)"
+
+    # Filter genetic map to HLA region
+    echo "Filtering genetic map to HLA region..."
+    awk -v start=${HLA_START} -v end=${HLA_END} \
+        '$4 >= start && $4 <= end' ${MAP_FILE} > ${QC_DIR}/temp/map_chr${CHR}_HLA.map
+    MAP_FILE_USE=${QC_DIR}/temp/map_chr${CHR}_HLA.map
+    echo "Genetic map positions in HLA: $(wc -l < ${MAP_FILE_USE})"
+else
+    REF_FILE_USE=${REF_FILE}
+    MAP_FILE_USE=${MAP_FILE}
+fi
+
+# Step 1.3: Phase with BEAGLE
+echo "Phasing with BEAGLE..."
+java -Xmx2000g -jar $BEAGLE_JAR \
+     gt=${QC_DIR}/temp/initial_chr${CHR}_sorted.vcf.gz \
+     map=${MAP_FILE_USE} \
+     out=${QC_DIR}/temp/phased_chr${CHR} \
+     nthreads=64 \
+     ref=${REF_FILE_USE}
+
+# Step 1.4: Remove '0_' prefix from sample names
+echo "Removing '0_' prefix from sample names..."
+bcftools query -l ${QC_DIR}/temp/phased_chr${CHR}.vcf.gz | sed 's/^0_//' > ${QC_DIR}/temp/cleaned_sample_names_${CHR}.txt
+bcftools reheader -s ${QC_DIR}/temp/cleaned_sample_names_${CHR}.txt -o ${QC_DIR}/temp/reheaded_chr${CHR}.vcf.gz ${QC_DIR}/temp/phased_chr${CHR}.vcf.gz
+tabix -p vcf ${QC_DIR}/temp/reheaded_chr${CHR}.vcf.gz
+
+# Step 1.5: Keep only biallelic SNPs
+echo "Filtering for biallelic SNPs..."
+bcftools view -m2 -M2 -v snps \
+    ${QC_DIR}/temp/reheaded_chr${CHR}.vcf.gz \
+    -Oz -o ${QC_DIR}/temp/biallelic_chr${CHR}.vcf.gz
+tabix -p vcf ${QC_DIR}/temp/biallelic_chr${CHR}.vcf.gz
+
+# Step 1.6: Remove SNPs with missing genotypes
+echo "Removing SNPs with missing genotypes..."
+bcftools view -e 'F_MISSING > 0' \
+    ${QC_DIR}/temp/biallelic_chr${CHR}.vcf.gz \
+    -Oz -o ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz
+tabix -p vcf ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz
+
+# Step 1.7: Remove individuals with >5% missingness
+echo "Removing individuals with high missingness..."
+bcftools query -l ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz > ${QC_DIR}/temp/sample_names.txt
+
+bcftools query -f '[%GT\t]\n' ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz | \
+  awk '{for (i=1;i<=NF;i++) if ($i == "./.") sum[i]+=1 } \
+       END {for (i in sum) print i, sum[i] / NR }' | \
+  sort -k1,1n | cut -f 2 > ${QC_DIR}/temp/sample_missingness.txt
+
+paste ${QC_DIR}/temp/sample_names.txt ${QC_DIR}/temp/sample_missingness.txt | \
+  awk '$2 > 0.05 { print $1 }' > ${QC_DIR}/temp/samples_to_remove.txt
+
+if [ -s "${QC_DIR}/temp/samples_to_remove.txt" ]; then
+    bcftools view -S ^${QC_DIR}/temp/samples_to_remove.txt ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz | bgzip > ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz
+else
+    mv ${QC_DIR}/temp/no_missing_snps_chr${CHR}.vcf.gz ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz
+fi
+
+tabix -p vcf ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz
+echo "Filtering complete. Output saved to ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz"
+
+# Step 1.8: Process population information
+echo "Processing population information..."
+bcftools query -l ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz | sed 's/^0_//' > ${QC_DIR}/temp/chr${CHR}_ids.txt
+
+python3 - <<EOF
+import csv
+import os
+from collections import Counter
+
+QC_DIR = os.environ['QC_DIR']
+CHR = os.environ['CHR']
+METADATA_FILE = os.environ['METADATA_FILE']
+SUBSET_DIR = os.environ['SUBSET_DIR']
+DATASET = os.environ['DATASET']
+
+with open(f"{QC_DIR}/temp/chr{CHR}_ids.txt") as f:
+    vcf_samples = set(line.strip() for line in f)
+
+valid_races = {"Caucasian": "CA", "African-American": "AA"}
+pop_samples = {}
+
+with open(METADATA_FILE) as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        sample = row['Los_ID'].strip()
+        race = row['Race'].strip()
+        gender = row['Gender'].strip()
+        if race in valid_races:
+            pop_samples[sample] = (valid_races[race], gender)
+
+common_samples = {s: pop_samples[s] for s in pop_samples if s in vcf_samples}
+
+print(f"Total samples in metadata: {len(pop_samples)}")
+print(f"Total samples in VCF: {len(vcf_samples)}")
+print(f"Common samples: {len(common_samples)}")
+print(f"Population distribution: {dict(Counter(race for race, _ in common_samples.values()))}")
+
+with open(f"{QC_DIR}/temp/population_info_chr{CHR}.txt", 'w') as out:
+    for sample, (pop, gender) in common_samples.items():
+        out.write(f"{sample}\t{pop}\t{gender}\n")
+
+for pop in {"CA", "AA", "ALL"}:
+    with open(f"{SUBSET_DIR}/{DATASET}_chr{CHR}_{pop}_ids.txt", 'w') as f:
+        if pop == "ALL":
+            for sample in common_samples:
+                f.write(f"{sample}\n")
+        else:
+            for sample, (race, _) in common_samples.items():
+                if race == pop:
+                    f.write(f"{sample}\n")
+
+with open(f"{QC_DIR}/temp/Done_chr{CHR}.signal", 'w') as f:
+    f.write("Done generating regions sample IDs.")
+EOF
+
+while [ ! -f "${QC_DIR}/temp/Done_chr${CHR}.signal" ]; do
+    sleep 1
+done
+
+fi  # End of Step 1 conditional
+
+# **STEP 2: POPULATION-SPECIFIC PROCESSING ###
+for POP in ALL CA AA; do
+    export POP
+
+    # Check if this population is already complete
+    if check_population_complete "${CHR}" "${POP}"; then
+        echo ""
+        echo "============================================="
+        echo "Population ${POP} for chromosome ${CHR} already complete!"
+        echo "All 3 splits (train/val/test) are valid."
+        echo ""
+        echo "Skipping this population."
+        echo ""
+        echo "To force reprocessing, manually delete:"
+        echo "  ${SPLIT_DIR}/${DATASET}_chr${CHR}_${POP}_*.vcf.gz*"
+        echo "============================================="
+        echo ""
+        continue
+    fi
+
+    echo ""
+    echo "Processing population ${POP} for chromosome ${CHR}..."
+    echo ""
+
+    # Determine output suffix based on HLA_MODE (chr6 only)
+    if [ "${CHR}" -eq 6 ] && [ "${HLA_MODE}" = "only" ]; then
+        OUTPUT_SUFFIX="_HLA"
+    else
+        OUTPUT_SUFFIX=""
+    fi
+
+    # Step 2.1: Extract population-specific VCF
+    if [ "$POP" = "ALL" ]; then
+        cp ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz ${QC_DIR}/${DATASET}_chr${CHR}_${POP}${OUTPUT_SUFFIX}.vcf.gz
+        cp ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz.tbi ${QC_DIR}/${DATASET}_chr${CHR}_${POP}${OUTPUT_SUFFIX}.vcf.gz.tbi
+    else
+        bcftools view -S ${SUBSET_DIR}/${DATASET}_chr${CHR}_${POP}_ids.txt ${QC_DIR}/temp/qc_chr${CHR}.vcf.gz -Oz -o ${QC_DIR}/${DATASET}_chr${CHR}_${POP}${OUTPUT_SUFFIX}.vcf.gz
+        tabix -p vcf ${QC_DIR}/${DATASET}_chr${CHR}_${POP}${OUTPUT_SUFFIX}.vcf.gz
+    fi
+
+    # Step 2.2: Create stratified train/val/test splits
+    python3 - <<EOF
+import csv
+import random
+import os
+from collections import defaultdict
+
+POP = os.environ['POP']
+CHR = os.environ['CHR']
+QC_DIR = os.environ['QC_DIR']
+SUBSET_DIR = os.environ['SUBSET_DIR']
+DATASET = os.environ['DATASET']
+
+population_bins = defaultdict(list)
+
+with open(f"{QC_DIR}/temp/population_info_chr{CHR}.txt") as f:
+    for line in f:
+        sample, race, gender = line.strip().split("\t")
+        bin_key = f"{race}_{gender}"
+        population_bins[bin_key].append(sample)
+
+def split_list(lst, train_ratio=0.8, val_ratio=0.1):
+    random.seed(42)
+    shuffled = lst.copy()
+    random.shuffle(shuffled)
+    n = len(shuffled)
+    train_size = int(n * train_ratio)
+    val_size = int(n * val_ratio)
+    train = shuffled[:train_size]
+    val = shuffled[train_size:train_size + val_size]
+    test = shuffled[train_size + val_size:]
+    return train, val, test
+
+split_samples = {"train": [], "val": [], "test": []}
+
+if POP == "ALL":
+    for bin_key, samples in population_bins.items():
+        train, val, test = split_list(samples)
+        split_samples["train"].extend(train)
+        split_samples["val"].extend(val)
+        split_samples["test"].extend(test)
+else:
+    relevant_bins = {k: v for k, v in population_bins.items() if k.startswith(POP)}
+    for bin_key, samples in relevant_bins.items():
+        train, val, test = split_list(samples)
+        split_samples["train"].extend(train)
+        split_samples["val"].extend(val)
+        split_samples["test"].extend(test)
+
+for split_name, samples in split_samples.items():
+    output_file = f"{SUBSET_DIR}/{DATASET}_chr{CHR}_{POP}_{split_name}_ids.txt"
+    with open(output_file, "w") as f:
+        f.write("\n".join(sorted(samples)))
+EOF
+
+    # Step 2.3: Create initial split VCFs
+    for split in train val test; do
+        bcftools view -S ${SUBSET_DIR}/${DATASET}_chr${CHR}_${POP}_${split}_ids.txt ${QC_DIR}/${DATASET}_chr${CHR}_${POP}${OUTPUT_SUFFIX}.vcf.gz -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}_initial.vcf.gz
+        tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}_initial.vcf.gz
+    done
+
+    # Step 2.4: Apply HWE and MAF filters
+    for split in train val test; do
+        echo "Processing ${split} split..."
+        bcftools +fill-tags ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}_initial.vcf.gz -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}_hwe.vcf.gz -- -t HWE
+        bcftools filter --include 'MAF>=0.001 & MAF<=0.999 & HWE>1e-6' \
+                 ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}_hwe.vcf.gz \
+                 -Oz -o ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}.vcf.gz
+        tabix -p vcf ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}.vcf.gz
+        echo "Indexing completed for ${split}"
+
+        echo "Summary of SNPs for chromosome ${CHR}, population ${POP}, ${split} split:"
+        echo "  Initial SNPs: $(bcftools query -f '%ID\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}_initial.vcf.gz | wc -l)"
+        echo "  SNPs after HWE+MAF: $(bcftools query -f '%ID\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}.vcf.gz | wc -l)"
+    done
+
+    # Step 2.5: Find overlapping SNPs across filtered splits
+    echo "Finding overlapping SNPs across filtered splits..."
+    comm -12 <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_train.vcf.gz | sort) \
+             <(comm -12 <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_val.vcf.gz | sort) \
+                       <(bcftools query -f '%CHROM\t%POS\n' ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_test.vcf.gz | sort)) \
+             > ${QC_DIR}/temp/chr${CHR}_${POP}_common_positions.txt
+
+    # Step 2.6: Create final split VCFs with overlapping SNPs
+    echo "Creating final split VCFs with overlapping SNPs..."
+    for split in train val test; do
+        bcftools view -R ${QC_DIR}/temp/chr${CHR}_${POP}_common_positions.txt \
+            ${QC_DIR}/temp/${DATASET}_chr${CHR}_${POP}_${split}.vcf.gz | \
+            bcftools annotate -x FORMAT,^FORMAT/GT -Oz -o ${SPLIT_DIR}/${DATASET}_chr${CHR}_${POP}_${split}${OUTPUT_SUFFIX}.vcf.gz
+        tabix -p vcf ${SPLIT_DIR}/${DATASET}_chr${CHR}_${POP}_${split}${OUTPUT_SUFFIX}.vcf.gz
+    done
+
+    overlap_count=$(wc -l < ${QC_DIR}/temp/chr${CHR}_${POP}_common_positions.txt | awk '{print $1}')
+    echo "SNPs in final overlap: ${overlap_count}"
+
+    # Step 2.7: Additionally extract HLA region if HLA_MODE is "both" (chromosome 6 only)
+    if [ "${CHR}" -eq 6 ] && [ "${HLA_MODE}" = "both" ]; then
+        echo "HLA_MODE=both: Additionally extracting HLA region for population ${POP}..."
+        for split in train val test; do
+            extract_hla_region \
+                ${SPLIT_DIR}/${DATASET}_chr${CHR}_${POP}_${split}.vcf.gz \
+                ${SPLIT_DIR}/${DATASET}_chr${CHR}_${POP}_${split}_HLA.vcf.gz
+        done
+    fi
+done
+
+# Record end time and calculate duration
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+
+echo ""
+echo "============================================="
+echo "Pipeline completed successfully for chromosome ${CHR}!"
+if [ "${CHR}" -eq 6 ]; then
+    echo "HLA Mode: ${HLA_MODE}"
+    case ${HLA_MODE} in
+        "none") echo "Output: Full chromosome 6" ;;
+        "only") echo "Output: HLA region only (chr6:${HLA_START}-${HLA_END})" ;;
+        "both") echo "Output: Full chromosome 6 + HLA region" ;;
+    esac
+fi
+echo "Running time: ${hours}h ${minutes}m"
+echo "============================================="

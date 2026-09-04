@@ -1,0 +1,8 @@
+runId: Segmentation
+dataset: LOS
+chromosome: 22
+segLen: 128
+overlap: 16
+population: ALL
+unique: True
+model: Any

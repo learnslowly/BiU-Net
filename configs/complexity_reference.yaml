@@ -1,0 +1,40 @@
+# The architecture Table 2 compares BiU-Net and SCDA under: depth 6, 32 channels, kernel
+# 7, segments of 128, which is what the region models were trained at.
+runId: complexity
+dataset: 1KGP
+chromosome: 22
+chromosomes: [22]
+segLen: 128
+overlap: 16
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 32
+kernelSize: 7
+stride: 1
+dropoutRate: 0.0
+useGroupNorm: False
+batchSize: 256
+batchSizeTest: 256
+learningRate: 0.0005
+loss: hybridWeightedFocalLoss
+dosageLossLambda: 0.5
+sampling: normal
+useWandB: False
+finetuning: False
+totalEpochs: 1
+warmupEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+missingRatio: 0.3
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+epoch: 0

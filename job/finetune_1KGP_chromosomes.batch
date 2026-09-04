@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --job-name=finetune_1KGP_chromosomes
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=gpu4
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:4
+#SBATCH --time=1-00:00:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+unset SLURM_TRES_PER_TASK
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+# MASTER_PORT, NCCL_SOCKET_IFNAME come from credentials.sh; CUDA_VISIBLE_DEVICES is
+# pinned in the .py.
+
+# Fine-tune the genome-wide checkpoint on one chromosome at a time, in sequence.
+for C in $(seq 1 22); do
+  CONF=configs/train_1KGP_finetuned_chr$C.yaml
+  echo "===== fine-tune chromosome $C: $CONF ====="
+  # Seed this run with the genome-wide weights. train.py resumes from the newest
+  # checkpoint of the run it is about to perform, and the two runs have different
+  # names, so without this step it would train from random initialisation.
+  "$PYBIN" -u scripts/prebake_finetune_checkpoint.py configs/train_1KGP_genomewide.yaml "$CONF"
+  srun --gpu-bind=closest "$PYBIN" -u train.py --configFile "$CONF"
+done
+echo "End:   $(date)"

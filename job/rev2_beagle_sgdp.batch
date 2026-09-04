@@ -1,0 +1,74 @@
+#!/bin/bash
+#SBATCH --job-name=rev2_bgl_sgdp
+#SBATCH --output=logs/%x_%A_%a.log
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=64
+#SBATCH --mem=0
+#SBATCH --time=24:00:00
+#SBATCH --array=0-197
+
+# Experiment-2 Beagle baseline: SGDP test imputed against the FULL 1KGP panel (2548
+# samples, the manuscript convention for SGDP, 01_impute.batch line 43), all 22
+# chromosomes x 3 rand states x 3 rates.
+set -euo pipefail
+source configs/credentials.sh
+
+CHRS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22)
+RANDS=(0 42 1024)
+RATES=("5%" "15%" "25%")
+C=${CHRS[$((SLURM_ARRAY_TASK_ID / 9))]}
+RS=${RANDS[$(((SLURM_ARRAY_TASK_ID % 9) / 3))]}
+P=${RATES[$((SLURM_ARRAY_TASK_ID % 3))]}
+
+export PATH=$HOME/local/java/bin:$HOME/local/bin:$PATH
+export JAVA_HOME=$HOME/local/java
+export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH
+
+D1=$GENOTYPE_DATA_DIR/1KGP
+DS=$GENOTYPE_DATA_DIR/SGDP
+BG=$REMOTE_ROOT/beagle
+REF=$D1/ref/1KGP_chr${C}_ALL_ref.vcf.gz
+MAP=$D1/orig/GRCh38/genetic_maps/plink.chr${C}.GRCh38.map
+IN=$DS/masked/$RS/$P/SGDP_chr${C}_ALL_missing${P}_masked.vcf.gz
+OUTDIR=$BG/impute/$RS/$P
+OUT=$OUTDIR/SGDP_chr${C}_ALL_missing${P}_imputed.vcf.gz
+CSV=${OUT%.vcf.gz}.csv.gz
+
+if [ -s "$CSV" ]; then echo "chr$C rand$RS $P already done, skipping."; exit 0; fi
+for f in "$REF" "$MAP" "$IN"; do
+  [ -s "$f" ] || { echo "ERROR: missing input $f"; exit 1; }
+done
+mkdir -p $OUTDIR
+
+echo "Beagle SGDP: chr$C rand$RS $P (ref=FULL 1KGP panel)"
+java -Xmx230g -jar $BG/src/beagle.jar \
+    gt=$IN ref=$REF map=$MAP out=${OUT%.vcf.gz} \
+    impute=false ne=200000 nthreads=$SLURM_CPUS_PER_TASK
+tabix -p vcf $OUT
+
+cd $BG
+export DATASET="SGDP" POP="ALL" CHR=$C RAND_ST=$RS MISSING_PERC=$P
+"$PYBIN" << 'EOF'
+import os, gzip, re
+import pandas as pd
+DATASET = os.environ["DATASET"]; CHR = os.environ["CHR"]; POP = os.environ["POP"]
+RAND_ST = os.environ["RAND_ST"]; MISSING_PERC = os.environ["MISSING_PERC"]
+INPUT_FILE = f'impute/{RAND_ST}/{MISSING_PERC}/{DATASET}_chr{CHR}_{POP}_missing{MISSING_PERC}_imputed.vcf.gz'
+OUTPUT_FILE = INPUT_FILE.replace('.vcf.gz', '.csv.gz')
+with gzip.open(INPUT_FILE, 'rt') as f:
+    lines = [line for line in f if not line.startswith('##')]
+header = lines[0].split()
+data = [line.split() for line in lines[1:]]
+genotype = pd.DataFrame(data, columns=header)
+genotype = pd.concat([genotype.iloc[:, [1]], genotype.iloc[:, 9:]], axis=1)
+conv = {'0|0': 1, '0|1': 2, '1|0': 3, '1|1': 4}
+genotype = genotype.assign(**{c: pd.to_numeric(genotype[c].map(conv), errors='coerce', downcast='integer') for c in genotype.columns[1:]})
+genotype = genotype.set_index('POS')
+genotype.columns = range(1, len(genotype.columns) + 1)
+with gzip.open(OUTPUT_FILE, 'wt') as f:
+    genotype.to_csv(f, index=True)
+print(f"{INPUT_FILE} -> {OUTPUT_FILE}")
+EOF
+echo "DONE chr$C rand$RS $P (impute + csv)"

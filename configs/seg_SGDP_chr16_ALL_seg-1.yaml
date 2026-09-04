@@ -1,0 +1,14 @@
+# SGDP chr16 full-length (seg-1) HDF5s for the Experiment-2 SCDA finetune.
+runId: seg_sgdp_fl_chr16
+dataset: SGDP
+chromosome: 16
+chromosomes: [16]
+segLen: -1
+overlap: 0
+population: ALL
+model: scda
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+batchSize: 32
+batchSizeTest: 32
+seed: 1024

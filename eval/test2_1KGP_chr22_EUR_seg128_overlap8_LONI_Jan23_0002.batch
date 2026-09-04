@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH --output=./eval/test2_1KGP_chr22_EUR_seg128_overlap8_LONI_Jan23_0002.out
+#SBATCH --mem-per-cpu=8GB
+#SBATCH --time=0-23:30:00
+#SBATCH --job-name=test2
+#SBATCH --partition=workq
+#SBATCH --nodes=2
+#SBATCH --ntasks=2
+#SBATCH --cpus-per-task=8
+
+source configs/credentials.sh
+export OMP_NUM_THREADS=8
+export MKL_NUM_THREADS=8
+
+starttime=`date +'%Y-%m-%d %H:%M:%S'`
+python test.py --configFile configs/1KGP_chr22_EUR_seg128_overlap8_LONI_Jan23_0002.yaml
+endtime=`date +'%Y-%m-%d %H:%M:%S'`
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"

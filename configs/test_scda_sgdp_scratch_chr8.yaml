@@ -1,0 +1,48 @@
+# Eval of the standalone SCDA SGDP model on chr8.
+runId: scda_sgdp_scratch
+dataset: SGDP
+chromosome: 8
+chromosomes: [8]
+segLen: -1
+overlap: 0
+population: ALL
+model: scda
+bioAware: False
+batchSize: 32
+dropoutRate: 0.00
+learningRate: 0.00072
+loss: focalLoss
+sampling: normal
+upsamplingRatio: 0.8
+missingRatio: 0.15
+dynamicRatio: False
+bertStrategy: False
+benchmarkAll: True
+trainOnVal: False
+extraTrainFiles: ./res/SGDP_chr*_ALLPANEL_train_chunk000_seg-1_overlap0.hdf5
+useWandB: False
+finetuning: False
+totalEpochs: 800
+warmupEpochs: 10
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.012
+seed: 0
+earlyStoppingPatience: 10
+earlyStoppingMinDelta: 0.0001
+curriculumStartRatio: -1.0
+curriculumWarmupEpochs: 0
+saveCheckpointFreq: 25
+valFreq: 5
+valSubsetFraction: 1.0
+batchSizeTest: 8
+epoch: best
+maxBatchPositions: 12000000
+preloadData: True
+dataLoaderWorkers: 4
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+missing: [0.05, 0.15, 0.25]
+testRandStates: [0, 42, 1024]
+perVariantR2: False

@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --partition=workq
+#SBATCH --time=10:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=mask_p2
+#SBATCH --output=./masked/masking_phase2_%j.out
+
+# Phase 2 masking: chr22 only at high missing rates (70%, 80%, 90%, 95%) for
+# Beagle/BiUNet curve crossover analysis.
+
+source configs/credentials.sh
+mkdir -p ./masked
+
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+
+python masking.py \
+    --dataset 1KGP \
+    --chromosome 22 \
+    --suffix "" \
+    --missingRatios 0.7 0.8 0.9 0.95
+
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"
+echo "Phase 2 masking completed for chr22!"

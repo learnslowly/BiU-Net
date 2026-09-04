@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=benchmark_scda_HLA_chr6_ALL
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --open-mode=append
+#SBATCH --partition=workq
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+
+# Project root + central credentials (REMOTE_*, PYBIN, MASTER_PORT, NCCL_*, etc.).
+cd "${SLURM_SUBMIT_DIR:-.}"
+source configs/credentials.sh
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=8
+unset SLURM_TRES_PER_TASK
+
+CFG=configs/test_scda_HLA_chr6_ALL.yaml
+# Missing rates and random states come from the config; one pass covers them all.
+"$PYBIN" -u benchmark.py --configFile "$CFG"
+echo "benchmark HLA_chr6_ALL done -> analysis/"

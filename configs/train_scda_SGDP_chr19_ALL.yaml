@@ -1,0 +1,37 @@
+# SGDP chr19 SCDA baseline, full-length (seg-1) training.
+runId: exp1_scda
+dataset: SGDP
+chromosome: 19
+segLen: -1
+overlap: 0
+population: ALL
+unique: False
+
+# Auxiliary for training
+model: scda
+bioAware: False
+nchannels: 32   # pinned: SCDA trained at 32 ch (BiU-Net default is now 48)
+useWandB: False
+# Manuscript SCDA value.
+batchSize: 2048
+dropoutRate: 0.01
+learningRate: 0.0000281
+loss: crossEntropy
+sampling: normal
+upsamplingRatio: 0.8
+totalEpochs: 20000
+warmupEpochs: 100
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.001
+seed: 42
+missingRatio: 0.05
+dynamicRatio: False
+bertStrategy: False
+
+# Auxiliary for testing/benchmarking
+benchmarkAll: True
+batchSizeTest: 1024
+epoch: 0

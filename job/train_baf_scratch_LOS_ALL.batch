@@ -1,0 +1,86 @@
+#!/bin/bash
+#SBATCH --output=logs/train_baf_scratch_LOS_ALL_%j.log
+#SBATCH --time=1-12:00:00
+#SBATCH --job-name=baf_sc_LOS
+#SBATCH --partition=gpu2
+#SBATCH --nodes=12
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-task=1
+#SBATCH --gres=gpu:2
+
+# BAF-ALIGNED training, FROM SCRATCH (clean version).
+
+source configs/credentials.sh
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+cat > configs/train_LOS_chr22_ALL_seg128_bafs.yaml <<'YAML'
+runId: v3_low_seg128_bafs
+dataset: LOS
+chromosome: 22
+chromosomes: [22]
+segLen: 128
+overlap: 16
+population: ALL
+model: unet
+bioAware: True
+depth: 6
+nchannels: 48
+kernelSize: 7
+stride: 1
+dropoutRate: 0.05
+useGroupNorm: False
+batchSize: 256
+learningRate: 0.0005
+loss: hybridFocalLoss
+dosageLossLambda: 0.1
+focalAlpha: 0.25
+focalGamma: 2.0
+sampling: normal
+missingRatio: 0.25
+dynamicRatio: True
+bertStrategy: False
+maskMode: sporadic
+preloadData: True
+benchmarkAll: False
+mixedPrecisionTraining: True
+useTorchCompile: True
+torchCompileMode: reduce-overhead
+saveCheckpointFreq: 10
+valFreq: 10
+valSubsetFraction: 0.5
+useWandB: False
+finetuning: False
+totalEpochs: 1000
+warmupEpochs: 10
+cooldownEpochs: 0
+scheduler: cosineAnn
+adamwBeta1: 0.9
+adamwBeta2: 0.99
+adamwEps: 0.00000001
+adamwWeightDecay: 0.01
+seed: 42
+earlyStoppingPatience: 50
+earlyStoppingMinDelta: 0.0001
+curriculumStartRatio: 0.05
+curriculumWarmupEpochs: 150
+bins: [0.001, 0.005, 0.010, 0.100, 0.200, 0.300, 0.400, 0.500]
+batchSizeTest: 8
+epoch: 0
+YAML
+echo "wrote config (from scratch, no warm-start seed); $(date)"
+
+export HDF5_USE_FILE_LOCKING=FALSE
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12441
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+echo "Job $SLURM_JOB_ID (baf from-scratch) training started $(date)"
+srun --export=ALL --gpu-bind=closest python -u train.py \
+    --configFile configs/train_LOS_chr22_ALL_seg128_bafs.yaml
+echo "finished $(date)"
